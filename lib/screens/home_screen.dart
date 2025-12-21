@@ -15,7 +15,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   final List<String> _titles = ['Phone', 'Recents', 'Contacts', 'Settings'];
   static const platform = MethodChannel('com.example.flutter_phone/dialer');
@@ -24,21 +24,38 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkDefaultDialer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestPermissions();
     });
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkDefaultDialer();
+    }
+  }
+
   Future<void> _checkDefaultDialer() async {
     try {
       final bool isDefault = await platform.invokeMethod('checkDefaultDialer');
-      setState(() {
-        _isDefaultDialer = isDefault;
-      });
-      if (!isDefault) {
-        _showDefaultDialerPrompt();
+      if (mounted) {
+        setState(() {
+          _isDefaultDialer = isDefault;
+        });
+        if (!isDefault) {
+          _showDefaultDialerPrompt();
+        }
       }
+      debugPrint('Is default dialer: $isDefault');
     } catch (e) {
       debugPrint("Error checking default dialer: $e");
     }
@@ -57,6 +74,9 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () async {
               try {
                 await platform.invokeMethod('requestDefaultDialer');
+                // Recheck after user action
+                await Future.delayed(const Duration(seconds: 1));
+                _checkDefaultDialer();
               } catch (e) {
                 debugPrint("Error requesting default dialer: $e");
               }
@@ -68,19 +88,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _requestPermissions() async {
-    final permissions = [
-      Permission.microphone,
+    // Request critical permissions first
+    final criticalPermissions = [
       Permission.phone,
       Permission.contacts,
+    ];
+
+    for (var permission in criticalPermissions) {
+      final status = await permission.request();
+      debugPrint('Permission ${permission.toString()}: $status');
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+
+    // Then request other permissions
+    final otherPermissions = [
+      Permission.microphone,
       Permission.camera,
-      Permission.storage,
-      Permission.audio,
-      Permission.photos,
-      Permission.sms,
       Permission.notification,
     ];
 
-    for (var permission in permissions) {
+    for (var permission in otherPermissions) {
       await permission.request();
       await Future.delayed(const Duration(milliseconds: 100));
     }

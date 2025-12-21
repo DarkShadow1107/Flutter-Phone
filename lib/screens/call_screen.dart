@@ -3,16 +3,20 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'call_end_screen.dart';
 
+enum CallState { dialing, ringing, connected, ended }
+
 class CallScreen extends StatefulWidget {
   final String name;
   final String number;
   final Color? contactColor;
+  final bool isIncoming;
 
   const CallScreen({
     super.key,
     required this.name,
     required this.number,
     this.contactColor,
+    this.isIncoming = false,
   });
 
   @override
@@ -33,12 +37,16 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
   late Animation<double> _entranceAnimation;
   String _dtmfInput = '';
   int _callSeconds = 0;
+  CallState _callState = CallState.dialing;
 
   Color get _baseColor => widget.contactColor ?? Colors.blue;
 
   @override
   void initState() {
     super.initState();
+    
+    // Set initial state based on incoming/outgoing
+    _callState = widget.isIncoming ? CallState.ringing : CallState.dialing;
     
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
@@ -69,15 +77,40 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
       curve: Curves.easeOutCubic,
     );
 
-    // Call timer
+    // Simulate call state transitions for outgoing calls
+    if (!widget.isIncoming) {
+      _simulateCallProgress();
+    }
+
+    // Call timer - only runs when connected
+    _startCallTimer();
+  }
+
+  void _simulateCallProgress() async {
+    // Dialing phase
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() => _callState = CallState.ringing);
+    
+    // Ringing phase (simulate answer after a few seconds for demo)
+    await Future.delayed(const Duration(seconds: 3));
+    if (!mounted) return;
+    setState(() => _callState = CallState.connected);
+  }
+
+  void _startCallTimer() {
     Future.doWhile(() async {
       await Future.delayed(const Duration(seconds: 1));
-      if (mounted) {
+      if (mounted && _callState == CallState.connected) {
         setState(() => _callSeconds++);
         return true;
       }
-      return false;
+      return mounted;
     });
+  }
+
+  void _answerCall() {
+    setState(() => _callState = CallState.connected);
   }
 
   @override
@@ -105,6 +138,20 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     final mins = seconds ~/ 60;
     final secs = seconds % 60;
     return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
+  String _getCallStatusText() {
+    if (_isOnHold) return '⏸ On Hold';
+    switch (_callState) {
+      case CallState.dialing:
+        return '📞 Calling...';
+      case CallState.ringing:
+        return '🔔 Ringing...';
+      case CallState.connected:
+        return _formatDuration(_callSeconds);
+      case CallState.ended:
+        return 'Call Ended';
+    }
   }
 
   void _endCall() async {
@@ -249,20 +296,28 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                         },
                       ),
                       const SizedBox(height: 20),
-                      // Call timer
+                      // Call status/timer
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
                         child: Container(
-                          key: ValueKey(_isOnHold ? 'hold' : _callSeconds),
+                          key: ValueKey(_isOnHold ? 'hold' : '${_callState}_$_callSeconds'),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                           decoration: BoxDecoration(
-                            color: _isOnHold ? Colors.amber.withAlpha(30) : Colors.white.withAlpha(15),
+                            color: _isOnHold 
+                                ? Colors.amber.withAlpha(30) 
+                                : _callState == CallState.connected 
+                                    ? Colors.white.withAlpha(15)
+                                    : Colors.green.withAlpha(30),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
-                            _isOnHold ? '⏸ On Hold' : _formatDuration(_callSeconds),
+                            _getCallStatusText(),
                             style: TextStyle(
-                              color: _isOnHold ? Colors.amber : Colors.white.withAlpha(200),
+                              color: _isOnHold 
+                                  ? Colors.amber 
+                                  : _callState == CallState.connected 
+                                      ? Colors.white.withAlpha(200)
+                                      : Colors.green,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                               letterSpacing: 1,
@@ -330,34 +385,38 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                       ),
                       
                       SizedBox(height: _showKeypad ? 10 : 40),
-                      // End Call Button
-                      TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0.0, end: 1.0),
-                        duration: const Duration(milliseconds: 600),
-                        curve: Curves.elasticOut,
-                        builder: (context, value, child) {
-                          return Transform.scale(scale: value, child: child);
-                        },
-                        child: GestureDetector(
-                          onTap: _endCall,
-                          child: Container(
-                            width: _showKeypad ? 64 : 76,
-                            height: _showKeypad ? 64 : 76,
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.red.withAlpha(120),
-                                  blurRadius: 30,
-                                  spreadRadius: 8,
-                                ),
-                              ],
+                      
+                      // Incoming call buttons OR End Call Button
+                      if (widget.isIncoming && _callState == CallState.ringing)
+                        _buildIncomingCallButtons()
+                      else
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0.0, end: 1.0),
+                          duration: const Duration(milliseconds: 600),
+                          curve: Curves.elasticOut,
+                          builder: (context, value, child) {
+                            return Transform.scale(scale: value, child: child);
+                          },
+                          child: GestureDetector(
+                            onTap: _endCall,
+                            child: Container(
+                              width: _showKeypad ? 64 : 76,
+                              height: _showKeypad ? 64 : 76,
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withAlpha(120),
+                                    blurRadius: 30,
+                                    spreadRadius: 8,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(Icons.call_end, color: Colors.white, size: _showKeypad ? 28 : 34),
                             ),
-                            child: Icon(Icons.call_end, color: Colors.white, size: _showKeypad ? 28 : 34),
                           ),
                         ),
-                      ),
                       SizedBox(height: _showKeypad ? 20 : 40),
                     ],
                   ),
@@ -503,6 +562,75 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildIncomingCallButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        // Reject button
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.elasticOut,
+          builder: (context, value, child) {
+            return Transform.scale(scale: value, child: child);
+          },
+          child: GestureDetector(
+            onTap: _endCall,
+            child: Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withAlpha(120),
+                    blurRadius: 30,
+                    spreadRadius: 8,
+                  ),
+                ],
+              ),
+              child: const Icon(Icons.call_end, color: Colors.white, size: 34),
+            ),
+          ),
+        ),
+        // Answer button
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.elasticOut,
+          builder: (context, value, child) {
+            return Transform.scale(scale: value, child: child);
+          },
+          child: GestureDetector(
+            onTap: _answerCall,
+            child: AnimatedBuilder(
+              animation: _pulseController,
+              builder: (context, child) {
+                return Container(
+                  width: 76,
+                  height: 76,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.green.withAlpha((80 + _pulseController.value * 60).toInt()),
+                        blurRadius: 30 + _pulseController.value * 20,
+                        spreadRadius: 8 + _pulseController.value * 8,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.call, color: Colors.white, size: 34),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
