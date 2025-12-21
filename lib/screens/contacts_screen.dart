@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
 import 'package:fast_contacts/fast_contacts.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'call_screen.dart';
 import 'contact_detail_screen.dart';
 import 'edit_contact_screen.dart';
@@ -29,18 +30,33 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
   Future<void> _loadContacts() async {
     try {
+      // Check permission first
+      final status = await Permission.contacts.status;
+      if (!status.isGranted) {
+        final result = await Permission.contacts.request();
+        if (!result.isGranted) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+          }
+          return;
+        }
+      }
+
       final sw = Stopwatch()..start();
       final deviceContacts = await FastContacts.getAllContacts();
       
       final List<Map<String, dynamic>> loadedContacts = [];
+      int count = 0;
       for (var contact in deviceContacts) {
+        if (count >= 200) break; // Limit for performance
         if (contact.phones.isNotEmpty) {
           loadedContacts.add({
-            'name': contact.displayName,
+            'name': contact.displayName.isNotEmpty ? contact.displayName : 'Unknown',
             'number': contact.phones.first,
             'color': Colors.primaries[loadedContacts.length % Colors.primaries.length],
             'favorite': false,
           });
+          count++;
         }
       }
 
@@ -51,8 +67,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
         });
         debugPrint('Loaded ${contacts.length} contacts in ${sw.elapsedMilliseconds}ms');
       }
-    } catch (e) {
+    } catch (e, stack) {
       debugPrint('Error loading contacts: $e');
+      debugPrint('Stack: $stack');
       if (mounted) {
         setState(() => _isLoading = false);
       }

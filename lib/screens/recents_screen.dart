@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
 import 'package:call_log/call_log.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'call_screen.dart';
 import 'contact_detail_screen.dart';
 import '../widgets/swipe_action_widget.dart';
@@ -26,6 +27,18 @@ class _RecentsScreenState extends State<RecentsScreen> {
 
   Future<void> _loadCallLogs() async {
     try {
+      // Check permission first
+      final status = await Permission.phone.status;
+      if (!status.isGranted) {
+        final result = await Permission.phone.request();
+        if (!result.isGranted) {
+          if (mounted) {
+            setState(() => _isLoading = false);
+          }
+          return;
+        }
+      }
+
       final Iterable<CallLogEntry> entries = await CallLog.get();
       final List<Map<String, dynamic>> logs = [];
 
