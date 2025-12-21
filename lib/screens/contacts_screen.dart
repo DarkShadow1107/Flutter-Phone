@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
+import 'package:fast_contacts/fast_contacts.dart';
 import 'call_screen.dart';
 import 'contact_detail_screen.dart';
 import 'edit_contact_screen.dart';
@@ -16,20 +17,47 @@ class ContactsScreen extends StatefulWidget {
 }
 
 class _ContactsScreenState extends State<ContactsScreen> {
-  // ... (keeping existing contacts list)
-  List<Map<String, dynamic>> contacts = [
-    {'name': 'Alice Johnson', 'number': '123456789', 'color': Colors.blue, 'favorite': false},
-    {'name': 'Bob Smith', 'number': '987654321', 'color': Colors.purple, 'favorite': false},
-    {'name': 'Charlie Brown', 'number': '555123456', 'color': Colors.orange, 'favorite': false},
-    {'name': 'David Miller', 'number': '444987654', 'color': Colors.green, 'favorite': false},
-    {'name': 'Eve Wilson', 'number': '333876543', 'color': Colors.red, 'favorite': false},
-    {'name': 'Frank Thomas', 'number': '222765432', 'color': Colors.teal, 'favorite': false},
-    {'name': 'Grace Lee', 'number': '111654321', 'color': Colors.pink, 'favorite': false},
-    {'name': 'Mom', 'number': '999888777', 'color': Colors.pink, 'favorite': true},
-    {'name': 'Dad', 'number': '888777666', 'color': Colors.blue, 'favorite': true},
-  ];
-
+  List<Map<String, dynamic>> contacts = [];
+  bool _isLoading = true;
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  Future<void> _loadContacts() async {
+    try {
+      final sw = Stopwatch()..start();
+      final deviceContacts = await FastContacts.getAllContacts();
+      
+      final List<Map<String, dynamic>> loadedContacts = [];
+      for (var contact in deviceContacts) {
+        if (contact.phones.isNotEmpty) {
+          loadedContacts.add({
+            'name': contact.displayName,
+            'number': contact.phones.first,
+            'color': Colors.primaries[loadedContacts.length % Colors.primaries.length],
+            'favorite': false,
+          });
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          contacts = loadedContacts;
+          _isLoading = false;
+        });
+        debugPrint('Loaded ${contacts.length} contacts in ${sw.elapsedMilliseconds}ms');
+      }
+    } catch (e) {
+      debugPrint('Error loading contacts: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   List<Map<String, dynamic>> get filteredContacts {
     var list = contacts;
@@ -68,6 +96,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             child: child,
           );
         },
+        transitionDuration: const Duration(milliseconds: 200),
       ),
     );
 
@@ -91,12 +120,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
     
     return Column(
       children: [
-        // Glassmorphic Search Bar & Add Contact
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
           child: Row(
             children: [
-              // Search Input
               Expanded(
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(24),
@@ -130,10 +157,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                   ),
                 ),
               ),
-              
               const SizedBox(width: 12),
-
-              // Add Contact Button
               GestureDetector(
                 onTap: _addNewContact,
                 child: ClipRRect(
@@ -150,11 +174,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                           color: Theme.of(context).colorScheme.primary.withAlpha(40),
                         ),
                       ),
-                      child: Icon(
-                        Icons.person_add,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 24,
-                      ),
+                      child: Icon(Icons.person_add, color: Theme.of(context).colorScheme.primary, size: 24),
                     ),
                   ),
                 ),
@@ -162,52 +182,49 @@ class _ContactsScreenState extends State<ContactsScreen> {
             ],
           ),
         ),
-        
-        // Contact List
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.only(bottom: 100),
-            children: [
-              if (favorites.isNotEmpty && _searchQuery.isEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.only(left: 24, top: 8, bottom: 12),
-                  child: Row(
-                    children: [
-                      Icon(Icons.star, size: 16, color: Colors.amber.shade600),
-                      const SizedBox(width: 8),
-                      Text(
-                        'FAVORITES',
-                        style: TextStyle(
-                          color: Colors.amber.shade600,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                          letterSpacing: 1.2,
-                        ),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : filteredContacts.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.person_off_outlined, size: 64, color: isDark ? Colors.white24 : Colors.black12),
+                          const SizedBox(height: 16),
+                          Text(
+                            _searchQuery.isEmpty ? 'No contacts found' : 'No results for "$_searchQuery"',
+                            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                ...favorites.asMap().entries.map((entry) => _buildContactTile(context, entry.value, entry.key, isFavorite: true)),
-                const SizedBox(height: 16),
-              ],
-
-              if (otherContacts.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.only(left: 24, top: 8, bottom: 12),
-                  child: Text(
-                    'ALL CONTACTS',
-                    style: TextStyle(
-                      color: isDark ? Colors.white54 : Colors.black45,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                      letterSpacing: 1.2,
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.only(bottom: 100),
+                      children: [
+                        if (favorites.isNotEmpty && _searchQuery.isEmpty) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(left: 24, top: 8, bottom: 12),
+                            child: Row(
+                              children: [
+                                Icon(Icons.star, size: 16, color: Colors.amber.shade600),
+                                const SizedBox(width: 8),
+                                Text('FAVORITES', style: TextStyle(color: Colors.amber.shade600, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
+                              ],
+                            ),
+                          ),
+                          ...favorites.asMap().entries.map((entry) => _buildContactTile(context, entry.value, entry.key, isFavorite: true)),
+                          const SizedBox(height: 16),
+                        ],
+                        if (otherContacts.isNotEmpty) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(left: 24, top: 8, bottom: 12),
+                            child: Text('ALL CONTACTS', style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
+                          ),
+                          ...otherContacts.asMap().entries.map((entry) => _buildContactTile(context, entry.value, entry.key + favorites.length)),
+                        ],
+                      ],
                     ),
-                  ),
-                ),
-                ...otherContacts.asMap().entries.map((entry) => _buildContactTile(context, entry.value, entry.key + favorites.length)),
-              ],
-            ],
-          ),
         ),
       ],
     );
@@ -221,159 +238,112 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 200 + (index * 40)),
+      duration: Duration(milliseconds: 150 + (index * 25)),
       curve: Curves.easeOut,
       builder: (context, value, child) {
         return Opacity(
           opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 15 * (1 - value)),
-            child: child,
-          ),
+          child: Transform.translate(offset: Offset(0, 15 * (1 - value)), child: child),
         );
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: SwipeActionWidget(
           onCall: () {
-            Navigator.push(
-              context,
-              PageRouteBuilder(
-                pageBuilder: (context, animation, secondaryAnimation) => CallScreen(
-                  name: name,
-                  number: number,
-                  contactColor: color,
-                ),
-                transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                  return SlideTransition(
-                    position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-                        .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-                    child: child,
-                  );
-                },
-              ),
-            );
+            Navigator.push(context, PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) => CallScreen(name: name, number: number, contactColor: color),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return SlideTransition(
+                  position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                  child: child,
+                );
+              },
+            ));
           },
           onMessage: () => _sendMessage(number),
           child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [Colors.black.withAlpha(200), Colors.black.withAlpha(150)] // Darker, less translucent
-                      : [Colors.white.withAlpha(245), Colors.white.withAlpha(230)], // Brighter, less translucent
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? [Colors.black.withAlpha(200), Colors.black.withAlpha(150)]
+                        : [Colors.white.withAlpha(245), Colors.white.withAlpha(230)],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(10)),
                 ),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(10),
-                ),
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                leading: Hero(
-                  tag: 'avatar_$name',
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: color.withAlpha(35),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: color.withAlpha(60)),
-                    ),
-                    child: Center(
-                      child: Text(
-                        name[0],
-                        style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 20),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  leading: Hero(
+                    tag: 'avatar_$name',
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: color.withAlpha(35),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: color.withAlpha(60)),
                       ),
+                      child: Center(child: Text(name.isNotEmpty ? name[0] : '?', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 20))),
                     ),
                   ),
-                ),
-                title: Row(
-                  children: [
-                    Flexible(
-                      child: Text(name, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
-                    ),
-                    if (isFavorite)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: Icon(Icons.star, size: 16, color: Colors.amber.shade600),
-                      ),
-                  ],
-                ),
-                subtitle: Text(number, style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontSize: 13)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector( // Improved button shape & splash
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          PageRouteBuilder(
-                            pageBuilder: (context, animation, secondaryAnimation) => CallScreen(
-                              name: name,
-                              number: number,
-                              contactColor: color,
-                            ),
+                  title: Row(
+                    children: [
+                      Flexible(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                      if (isFavorite) Padding(padding: const EdgeInsets.only(left: 8), child: Icon(Icons.star, size: 16, color: Colors.amber.shade600)),
+                    ],
+                  ),
+                  subtitle: Text(number, style: TextStyle(color: isDark ? Colors.white54 : Colors.black45, fontSize: 13)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(context, PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) => CallScreen(name: name, number: number, contactColor: color),
                             transitionsBuilder: (context, animation, secondaryAnimation, child) {
                               return SlideTransition(
-                                position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-                                    .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                                position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
                                 child: child,
                               );
                             },
-                          ),
-                        );
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withAlpha(20),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green.withAlpha(40)),
+                          ));
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: Colors.green.withAlpha(20), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.withAlpha(40))),
+                          child: const Icon(Icons.call, color: Colors.green, size: 20),
                         ),
-                        child: const Icon(Icons.call, color: Colors.green, size: 20),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () => _sendMessage(number),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withAlpha(20),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue.withAlpha(40)),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _sendMessage(number),
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(color: Colors.blue.withAlpha(20), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.withAlpha(40))),
+                          child: const Icon(Icons.message, color: Colors.blue, size: 20),
                         ),
-                        child: const Icon(Icons.message, color: Colors.blue, size: 20),
                       ),
-                    ),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    PageRouteBuilder(
-                      pageBuilder: (context, animation, secondaryAnimation) => ContactDetailScreen(
-                        name: name,
-                        number: number,
-                        avatarColor: color,
-                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    Navigator.push(context, PageRouteBuilder(
+                      pageBuilder: (context, animation, secondaryAnimation) => ContactDetailScreen(name: name, number: number, avatarColor: color),
                       transitionsBuilder: (context, animation, secondaryAnimation, child) {
                         return FadeTransition(opacity: animation, child: child);
                       },
-                    ),
-                  );
-                },
+                    ));
+                  },
+                ),
               ),
             ),
           ),
-          ),
-        ), // SwipeActionWidget closing
+        ),
       ),
     );
   }

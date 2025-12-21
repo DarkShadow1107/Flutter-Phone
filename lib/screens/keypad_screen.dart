@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
 import 'call_screen.dart';
@@ -64,6 +65,7 @@ class _KeypadScreenState extends State<KeypadScreen> with SingleTickerProviderSt
               child: child,
             );
           },
+          transitionDuration: const Duration(milliseconds: 200),
         ),
       );
     }
@@ -76,6 +78,77 @@ class _KeypadScreenState extends State<KeypadScreen> with SingleTickerProviderSt
         await launchUrl(smsUri);
       }
     }
+  }
+
+  Future<void> _copyNumber() async {
+    if (_phoneNumber.isNotEmpty) {
+      await Clipboard.setData(ClipboardData(text: _phoneNumber));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Number copied to clipboard'),
+            behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 1),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _pasteNumber() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data != null && data.text != null) {
+      // Basic sanitization: keep only digits, +, *, #
+      final cleanNumber = data.text!.replaceAll(RegExp(r'[^0-9+*#]'), '');
+      if (cleanNumber.isNotEmpty) {
+        setState(() {
+          // Limit to a reasonable length for a dialer
+          _phoneNumber = cleanNumber.length > 15 
+              ? cleanNumber.substring(0, 15) 
+              : cleanNumber;
+        });
+      }
+    }
+  }
+
+  void _showContextMenu(Offset globalPosition) async {
+    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    
+    await showMenu(
+      context: context,
+      position: RelativeRect.fromRect(
+        globalPosition & const Size(40, 40),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        if (_phoneNumber.isNotEmpty)
+          const PopupMenuItem(
+            value: 'copy',
+            child: Row(
+              children: [
+                Icon(Icons.copy, size: 20),
+                SizedBox(width: 12),
+                Text('Copy'),
+              ],
+            ),
+          ),
+        const PopupMenuItem(
+          value: 'paste',
+          child: Row(
+            children: [
+              Icon(Icons.paste, size: 20),
+              SizedBox(width: 12),
+              Text('Paste'),
+            ],
+          ),
+        ),
+      ],
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ).then((value) {
+      if (value == 'copy') _copyNumber();
+      if (value == 'paste') _pasteNumber();
+    });
   }
 
   @override
@@ -92,11 +165,14 @@ class _KeypadScreenState extends State<KeypadScreen> with SingleTickerProviderSt
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(28),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                      child: Container(
+                  child: GestureDetector(
+                    onLongPressStart: (details) => _showContextMenu(details.globalPosition),
+                    onSecondaryTapDown: (details) => _showContextMenu(details.globalPosition),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(28),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                        child: Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                         decoration: BoxDecoration(
@@ -171,6 +247,8 @@ class _KeypadScreenState extends State<KeypadScreen> with SingleTickerProviderSt
                 ),
               ),
             ),
+          ),
+          const SizedBox(height: 16), // Added spacing for better layout consistency
 
             // Keypad Grid
             Expanded(

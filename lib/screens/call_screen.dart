@@ -56,7 +56,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     )..repeat();
 
     _entranceController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     )..forward();
 

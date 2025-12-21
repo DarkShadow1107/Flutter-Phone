@@ -1,9 +1,9 @@
-# 📱 Flutter Phone - Premium Glassmorphic Dialer (v1.2.7)
+# 📱 Flutter Phone - Premium Glassmorphic Dialer (v1.2.8)
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?logo=dart&logoColor=white)](https://dart.dev)
 [![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org)
-[![Version](https://img.shields.io/badge/Version-1.2.7--Stable-brightgreen)](#release-information)
+[![Version](https://img.shields.io/badge/Version-1.2.8--Stable-brightgreen)](#release-information)
 
 A state-of-the-art, high-fidelity phone dialer and contact management application built with Flutter. This project pushes the boundaries of mobile UI/UX by combining the functional efficiency of **Samsung's One UI** with the sleek, modern aesthetics of **Google Pixel**, all wrapped in a custom **Glassmorphism Design System**.
 

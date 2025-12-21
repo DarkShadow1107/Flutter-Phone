@@ -175,7 +175,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             context,
             icon: Icons.info_outline,
             title: 'App version',
-            subtitle: '1.2.7 (Stable)',
+            subtitle: '1.2.8 (Stable)',
           ),
           _buildGlassTile(
             context,

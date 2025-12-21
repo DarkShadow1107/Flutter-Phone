@@ -1,12 +1,94 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
+import 'package:call_log/call_log.dart';
+import 'package:intl/intl.dart';
 import 'call_screen.dart';
 import 'contact_detail_screen.dart';
 import '../widgets/swipe_action_widget.dart';
 
-class RecentsScreen extends StatelessWidget {
+class RecentsScreen extends StatefulWidget {
   const RecentsScreen({super.key});
+
+  @override
+  State<RecentsScreen> createState() => _RecentsScreenState();
+}
+
+class _RecentsScreenState extends State<RecentsScreen> {
+  List<Map<String, dynamic>> _callLogs = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCallLogs();
+  }
+
+  Future<void> _loadCallLogs() async {
+    try {
+      final Iterable<CallLogEntry> entries = await CallLog.get();
+      final List<Map<String, dynamic>> logs = [];
+
+      for (var entry in entries.take(50)) { // Limit to 50 for performance
+        final String name = entry.name ?? entry.number ?? 'Unknown';
+        final String number = entry.number ?? '';
+        final DateTime date = DateTime.fromMillisecondsSinceEpoch(entry.timestamp ?? 0);
+        final String timeStr = _formatDate(date);
+        
+        String status = 'incoming';
+        if (entry.callType == CallType.outgoing) status = 'outgoing';
+        if (entry.callType == CallType.missed) status = 'missed';
+        if (entry.callType == CallType.rejected) status = 'missed';
+
+        logs.add({
+          'name': name,
+          'number': number,
+          'time': timeStr,
+          'status': status,
+          'color': Colors.primaries[logs.length % Colors.primaries.length],
+          'duration': entry.duration != null ? _formatDuration(entry.duration!) : null,
+        });
+      }
+
+      if (mounted) {
+        setState(() {
+          _callLogs = logs;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading call logs: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final logDay = DateTime(date.year, date.month, date.day);
+
+    if (logDay == today) {
+      return DateFormat.jm().format(date);
+    } else if (logDay == yesterday) {
+      return 'Yesterday';
+    } else {
+      return DateFormat.MMMd().format(date);
+    }
+  }
+
+  String _formatDuration(int seconds) {
+    if (seconds == 0) return '0s';
+    final duration = Duration(seconds: seconds);
+    final minutes = duration.inMinutes;
+    final remainingSeconds = seconds % 60;
+    if (minutes > 0) {
+      return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+    }
+    return '${remainingSeconds}s';
+  }
 
   Future<void> _sendMessage(BuildContext context, String number) async {
     final Uri smsUri = Uri.parse('sms:$number');
@@ -19,19 +101,31 @@ class RecentsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    final List<Map<String, dynamic>> recents = [
-      {'name': 'John Doe', 'number': '123456789', 'time': '10:30 AM', 'status': 'incoming', 'color': Colors.blue, 'duration': '2:45'},
-      {'name': 'Alice Smith', 'number': '987654321', 'time': 'Yesterday', 'status': 'outgoing', 'color': Colors.purple, 'duration': '5:12'},
-      {'name': '+1 234 567 890', 'number': '+1 234 567 890', 'time': 'Yesterday', 'status': 'missed', 'color': Colors.orange, 'duration': null},
-      {'name': 'Mom', 'number': '555123456', 'time': 'Dec 19', 'status': 'incoming', 'color': Colors.pink, 'duration': '15:32'},
-      {'name': 'Pizza Hut', 'number': '444987654', 'time': 'Dec 18', 'status': 'outgoing', 'color': Colors.red, 'duration': '1:05'},
-    ];
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_callLogs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history_toggle_off, size: 64, color: isDark ? Colors.white24 : Colors.black12),
+            const SizedBox(height: 16),
+            Text(
+              'No recent calls',
+              style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+            ),
+          ],
+        ),
+      );
+    }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), // Added bottom padding for navbar
-      itemCount: recents.length,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      itemCount: _callLogs.length,
       itemBuilder: (context, index) {
-        final item = recents[index];
+        final item = _callLogs[index];
         final isMissed = item['status'] == 'missed';
         final name = item['name'] as String;
         final number = item['number'] as String;
@@ -39,7 +133,7 @@ class RecentsScreen extends StatelessWidget {
 
         return TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.0, end: 1.0),
-          duration: Duration(milliseconds: 200 + (index * 60)),
+          duration: Duration(milliseconds: 150 + (index * 30)),
           curve: Curves.easeOut,
           builder: (context, value, child) {
             return Opacity(

@@ -27,7 +27,7 @@ class _CallEndScreenState extends State<CallEndScreen> with SingleTickerProvider
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
 
@@ -170,7 +170,8 @@ class _CallEndScreenState extends State<CallEndScreen> with SingleTickerProvider
                           if (await canLaunchUrl(smsUri)) {
                             await launchUrl(smsUri);
                           }
-                          if (mounted) Navigator.pop(context);
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
                         }),
                       ],
                     ),

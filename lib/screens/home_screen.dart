@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:ui';
 import 'package:permission_handler/permission_handler.dart';
 import 'keypad_screen.dart';
@@ -16,14 +17,53 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-
   final List<String> _titles = ['Phone', 'Recents', 'Contacts', 'Settings'];
+  static const platform = MethodChannel('com.example.flutter_phone/dialer');
+  bool _isDefaultDialer = true;
 
   @override
   void initState() {
     super.initState();
+    _checkDefaultDialer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _requestPermissions();
+    });
+  }
+
+  Future<void> _checkDefaultDialer() async {
+    try {
+      final bool isDefault = await platform.invokeMethod('checkDefaultDialer');
+      setState(() {
+        _isDefaultDialer = isDefault;
+      });
+      if (!isDefault) {
+        _showDefaultDialerPrompt();
+      }
+    } catch (e) {
+      debugPrint("Error checking default dialer: $e");
+    }
+  }
+
+  void _showDefaultDialerPrompt() {
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Set Flutter Phone as your default dialer?'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'SET AS DEFAULT',
+            onPressed: () async {
+              try {
+                await platform.invokeMethod('requestDefaultDialer');
+              } catch (e) {
+                debugPrint("Error requesting default dialer: $e");
+              }
+            },
+          ),
+        ),
+      );
     });
   }
 
@@ -71,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: child,
           );
         },
-        transitionDuration: const Duration(milliseconds: 400),
+        transitionDuration: const Duration(milliseconds: 200),
       ),
     );
   }
@@ -160,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Header
                 if (_selectedIndex != 0)
                   AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 200),
                     curve: Curves.easeOut,
                     padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
                     child: Text(
@@ -174,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Content with animation
                 Expanded(
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 200),
                     transitionBuilder: (child, animation) {
                       return FadeTransition(
                         opacity: animation,
@@ -202,6 +242,38 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          if (!_isDefaultDialer)
+            Positioned(
+              top: 100,
+              left: 20,
+              right: 20,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    color: Colors.amber.withAlpha(200),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.warning_amber_rounded, color: Colors.black87),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'App is not set as default dialer',
+                            style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => platform.invokeMethod('requestDefaultDialer'),
+                          child: const Text('SET', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
       // FAB removed to avoid duplicates using child screens' own buttons
@@ -228,7 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
               elevation: 0,
               backgroundColor: Colors.transparent,
               indicatorColor: Theme.of(context).colorScheme.primary.withAlpha(40),
-              animationDuration: const Duration(milliseconds: 400),
+              animationDuration: const Duration(milliseconds: 200),
               destinations: const [
                 NavigationDestination(
                   icon: Icon(Icons.dialpad_outlined),
