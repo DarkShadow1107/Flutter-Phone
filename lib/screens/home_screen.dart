@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'package:permission_handler/permission_handler.dart';
 import 'keypad_screen.dart';
 import 'recents_screen.dart';
 import 'contacts_screen.dart';
@@ -17,6 +18,33 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   final List<String> _titles = ['Phone', 'Recents', 'Contacts', 'Settings'];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestPermissions();
+    });
+  }
+
+  Future<void> _requestPermissions() async {
+    final permissions = [
+      Permission.microphone,
+      Permission.phone,
+      Permission.contacts,
+      Permission.camera,
+      Permission.storage,
+      Permission.audio,
+      Permission.photos,
+      Permission.sms,
+      Permission.notification,
+    ];
+
+    for (var permission in permissions) {
+      await permission.request();
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+  }
 
   void _onTabChanged(int index) {
     if (index != _selectedIndex) {

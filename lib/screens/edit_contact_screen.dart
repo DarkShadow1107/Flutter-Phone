@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class EditContactScreen extends StatefulWidget {
   final String? initialName;
@@ -25,6 +28,8 @@ class _EditContactScreenState extends State<EditContactScreen> {
   late TextEditingController _emailController;
   late TextEditingController _companyController;
   late TextEditingController _notesController;
+  File? _image;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -61,6 +66,87 @@ class _EditContactScreenState extends State<EditContactScreen> {
       'company': _companyController.text,
       'notes': _notesController.text,
     });
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    // Request permissions based on source
+    if (source == ImageSource.camera) {
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Camera permission denied'), behavior: SnackBarBehavior.floating),
+        );
+        return;
+      }
+    } else {
+      // For gallery, depends on Android version but requesting Photos/Storage is safe
+      final photoStatus = await Permission.photos.request();
+      if (!photoStatus.isGranted) {
+        final storageStatus = await Permission.storage.request();
+        if (!storageStatus.isGranted) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gallery permission denied'), behavior: SnackBarBehavior.floating),
+          );
+          return;
+        }
+      }
+    }
+
+    final XFile? pickedFile = await _picker.pickImage(source: source);
+    if (pickedFile != null) {
+      if (!mounted) return;
+      setState(() {
+        _image = File(pickedFile.path);
+      });
+    }
+  }
+
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+             ClipRRect(
+               borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+               child: BackdropFilter(
+                 filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                 child: Container(
+                   decoration: BoxDecoration(
+                     color: Theme.of(context).brightness == Brightness.dark 
+                       ? Colors.black.withAlpha(200) 
+                       : Colors.white.withAlpha(230),
+                   ),
+                   child: Column(
+                     children: [
+                       ListTile(
+                         leading: const Icon(Icons.photo_camera),
+                         title: const Text('Take a photo'),
+                         onTap: () {
+                           Navigator.pop(context);
+                           _pickImage(ImageSource.camera);
+                         },
+                       ),
+                       ListTile(
+                         leading: const Icon(Icons.photo_library),
+                         title: const Text('Choose from gallery'),
+                         onTap: () {
+                           Navigator.pop(context);
+                           _pickImage(ImageSource.gallery);
+                         },
+                       ),
+                     ],
+                   ),
+                 ),
+               ),
+             ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _confirmDelete() {
@@ -115,15 +201,15 @@ class _EditContactScreenState extends State<EditContactScreen> {
         elevation: 0,
         leading: IconButton(
           icon: ClipRRect(
-             borderRadius: BorderRadius.circular(12),
-             child: BackdropFilter(
-               filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-               child: Container(
-                 padding: const EdgeInsets.all(8),
-                 color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(5),
-                 child: const Icon(Icons.close, size: 20),
-               ),
-             ),
+            borderRadius: BorderRadius.circular(12),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(5),
+                child: const Icon(Icons.close, size: 20),
+              ),
+            ),
           ),
           onPressed: () => Navigator.pop(context),
         ),
@@ -189,11 +275,7 @@ class _EditContactScreenState extends State<EditContactScreen> {
                  children: [
                    // Avatar
                    GestureDetector(
-                     onTap: () {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                         const SnackBar(content: Text('Photo picker would open here'), behavior: SnackBarBehavior.floating),
-                       );
-                     },
+                     onTap: _showImagePickerOptions,
                      child: Container(
                        width: 100,
                        height: 100,
@@ -204,15 +286,23 @@ class _EditContactScreenState extends State<EditContactScreen> {
                          boxShadow: [
                            BoxShadow(color: primaryColor.withAlpha(30), blurRadius: 20, spreadRadius: 5),
                          ],
+                         image: _image != null
+                             ? DecorationImage(
+                                 image: FileImage(_image!),
+                                 fit: BoxFit.cover,
+                               )
+                             : null,
                        ),
-                       child: _nameController.text.isNotEmpty
-                           ? Center(
-                               child: Text(
-                                 _nameController.text[0].toUpperCase(),
-                                 style: TextStyle(fontSize: 36, color: primaryColor, fontWeight: FontWeight.bold),
-                               ),
-                             )
-                           : Icon(Icons.add_a_photo, size: 32, color: primaryColor),
+                       child: _image == null
+                           ? (_nameController.text.isNotEmpty
+                               ? Center(
+                                   child: Text(
+                                     _nameController.text[0].toUpperCase(),
+                                     style: TextStyle(fontSize: 36, color: primaryColor, fontWeight: FontWeight.bold),
+                                   ),
+                                 )
+                               : Icon(Icons.add_a_photo, size: 32, color: primaryColor))
+                           : null,
                      ),
                    ),
                    const SizedBox(height: 32),

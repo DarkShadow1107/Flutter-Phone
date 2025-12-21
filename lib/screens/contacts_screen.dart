@@ -166,7 +166,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         // Contact List
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.only(bottom: 100),
             children: [
               if (favorites.isNotEmpty && _searchQuery.isEmpty) ...[
                 Padding(

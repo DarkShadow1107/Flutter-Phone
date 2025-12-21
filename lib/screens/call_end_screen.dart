@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'call_screen.dart';
 
 class CallEndScreen extends StatefulWidget {
   final String name;
@@ -152,11 +154,23 @@ class _CallEndScreenState extends State<CallEndScreen> with SingleTickerProvider
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         _buildQuickAction(Icons.call, 'Call Back', Colors.green, () {
-                          Navigator.pop(context, 'callback');
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CallScreen(
+                                name: widget.name,
+                                number: widget.number,
+                              ),
+                            ),
+                          );
                         }),
                         const SizedBox(width: 32),
-                        _buildQuickAction(Icons.message, 'Message', Colors.blue, () {
-                          Navigator.pop(context, 'message');
+                        _buildQuickAction(Icons.message, 'Message', Colors.blue, () async {
+                          final Uri smsUri = Uri.parse('sms:${widget.number}');
+                          if (await canLaunchUrl(smsUri)) {
+                            await launchUrl(smsUri);
+                          }
+                          if (mounted) Navigator.pop(context);
                         }),
                       ],
                     ),

@@ -28,7 +28,7 @@ class RecentsScreen extends StatelessWidget {
     ];
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100), // Added bottom padding for navbar
       itemCount: recents.length,
       itemBuilder: (context, index) {
         final item = recents[index];

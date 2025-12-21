@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'speed_dial_screen.dart';
 import 'blocked_numbers_screen.dart';
 import 'privacy_policy_screen.dart';
+import 'help_feedback_screen.dart';
+import 'ringtone_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -135,12 +137,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ]),
 
+        _buildSection(context, 'Sound & Vibration', [
+          _buildGlassTile(
+            context,
+            icon: Icons.notifications_active_outlined,
+            title: 'Ringtone',
+            subtitle: 'Default (Pixel Sound)',
+            onTap: () {
+              Navigator.push(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) => const RingtoneScreen(),
+                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                    return SlideTransition(
+                      position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                          .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                      child: child,
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+          _buildGlassTile(
+            context,
+            icon: Icons.volume_up_outlined,
+            title: 'Dial pad tones',
+            trailing: Switch(
+              value: true,
+              onChanged: (v) {},
+            ),
+          ),
+        ]),
+
         _buildSection(context, 'About', [
           _buildGlassTile(
             context,
             icon: Icons.info_outline,
             title: 'App version',
-            subtitle: '1.0.0',
+            subtitle: '1.2.7 (Stable)',
+          ),
+          _buildGlassTile(
+            context,
+            icon: Icons.help_outline,
+            title: 'Help & Feedback',
+            onTap: () {
+              Navigator.push(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) => const HelpFeedbackScreen(),
+                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                    return SlideTransition(
+                      position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                          .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                      child: child,
+                    );
+                  },
+                ),
+              );
+            },
           ),
           _buildGlassTile(
             context,

@@ -211,16 +211,17 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                   ).animate(_entranceAnimation),
                   child: Column(
                     children: [
-                      const SizedBox(height: 40),
+                      SizedBox(height: _showKeypad ? 20 : 40),
                       // Pulsing avatar with glow
                       AnimatedBuilder(
                         animation: _pulseAnimation,
                         builder: (context, child) {
                           return Transform.scale(
                             scale: _pulseAnimation.value,
-                            child: Container(
-                              width: 110,
-                              height: 110,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              width: _showKeypad ? 80 : 110,
+                              height: _showKeypad ? 80 : 110,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: _baseColor.withAlpha(30),
@@ -328,7 +329,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                             : _buildCallControls(),
                       ),
                       
-                      const SizedBox(height: 40),
+                      SizedBox(height: _showKeypad ? 10 : 40),
                       // End Call Button
                       TweenAnimationBuilder<double>(
                         tween: Tween(begin: 0.0, end: 1.0),
@@ -340,8 +341,8 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                         child: GestureDetector(
                           onTap: _endCall,
                           child: Container(
-                            width: 76,
-                            height: 76,
+                            width: _showKeypad ? 64 : 76,
+                            height: _showKeypad ? 64 : 76,
                             decoration: BoxDecoration(
                               color: Colors.red,
                               shape: BoxShape.circle,
@@ -353,11 +354,11 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                                 ),
                               ],
                             ),
-                            child: const Icon(Icons.call_end, color: Colors.white, size: 34),
+                            child: Icon(Icons.call_end, color: Colors.white, size: _showKeypad ? 28 : 34),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 40),
+                      SizedBox(height: _showKeypad ? 20 : 40),
                     ],
                   ),
                 ),
@@ -455,24 +456,25 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
   Widget _buildInCallKeypad() {
     return Padding(
       key: const ValueKey('keypad'),
-      padding: const EdgeInsets.symmetric(horizontal: 40),
+      padding: const EdgeInsets.symmetric(horizontal: 50),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           GridView.count(
             crossAxisCount: 3,
             shrinkWrap: true,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 16,
-            childAspectRatio: 1.4,
+            mainAxisSpacing: 6,
+            crossAxisSpacing: 12,
+            childAspectRatio: 1.6,
             physics: const NeverScrollableScrollPhysics(),
             children: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#']
                 .map((d) => _buildDTMFButton(d))
                 .toList(),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           TextButton(
             onPressed: _toggleKeypad,
-            child: const Text('Hide Keypad', style: TextStyle(color: Colors.white70)),
+            child: const Text('Hide Keypad', style: TextStyle(color: Colors.white70, fontSize: 12)),
           ),
         ],
       ),
@@ -495,7 +497,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
             child: Center(
               child: Text(
                 digit,
-                style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w500),
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w500),
               ),
             ),
           ),
