@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'call_end_screen.dart';
+import '../services/call_service.dart';
 
 enum CallState { dialing, ringing, connected, ended }
 
@@ -109,7 +110,11 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     });
   }
 
-  void _answerCall() {
+  void _answerCall() async {
+    // Answer via native call service
+    if (widget.isIncoming) {
+      await callService.answerCall();
+    }
     setState(() => _callState = CallState.connected);
   }
 
@@ -132,6 +137,8 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     setState(() {
       _dtmfInput += digit;
     });
+    // Send DTMF tone via native
+    callService.sendDtmf(digit);
   }
 
   String _formatDuration(int seconds) {
@@ -156,13 +163,20 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
 
   void _endCall() async {
     final duration = Duration(seconds: _callSeconds);
+    final navigator = Navigator.of(context);
+    final name = widget.name;
+    final number = widget.number;
     
-    await Navigator.pushReplacement(
-      context,
+    // End via native call service
+    await callService.endCall();
+    
+    if (!mounted) return;
+    
+    navigator.pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => CallEndScreen(
-          name: widget.name,
-          number: widget.number,
+          name: name,
+          number: number,
           callDuration: duration,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {

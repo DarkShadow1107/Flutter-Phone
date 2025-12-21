@@ -3,17 +3,24 @@ package com.example.flutter_phone
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.EventChannel
 import android.telecom.TelecomManager
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
+import android.net.Uri
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.flutter_phone/dialer"
+    private val DIALER_CHANNEL = "com.example.flutter_phone/dialer"
+    private val CALL_CHANNEL = "com.example.flutter_phone/calls"
+    private val CALL_EVENTS = "com.example.flutter_phone/call_events"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        
+        // Dialer channel for default dialer operations
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DIALER_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "checkDefaultDialer" -> {
                     val telecomManager = getSystemService(Context.TELECOM_SERVICE) as TelecomManager
@@ -33,6 +40,88 @@ class MainActivity : FlutterActivity() {
                 else -> {
                     result.notImplemented()
                 }
+            }
+        }
+
+        // Call control channel
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CALL_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "answerCall" -> {
+                    CallManager.answerCall()
+                    result.success(true)
+                }
+                "rejectCall" -> {
+                    CallManager.rejectCall()
+                    result.success(true)
+                }
+                "endCall" -> {
+                    CallManager.endCall()
+                    result.success(true)
+                }
+                "makeCall" -> {
+                    val number = call.argument<String>("number")
+                    if (number != null) {
+                        val intent = Intent(Intent.ACTION_CALL).apply {
+                            data = Uri.parse("tel:$number")
+                        }
+                        startActivity(intent)
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_NUMBER", "Phone number is required", null)
+                    }
+                }
+                "sendDtmf" -> {
+                    val digit = call.argument<String>("digit")
+                    if (digit != null && digit.isNotEmpty()) {
+                        CallManager.sendDtmf(digit[0])
+                        result.success(true)
+                    } else {
+                        result.error("INVALID_DIGIT", "DTMF digit is required", null)
+                    }
+                }
+                "hasActiveCall" -> {
+                    result.success(CallManager.getCurrentCall() != null)
+                }
+                else -> {
+                    result.notImplemented()
+                }
+            }
+        }
+
+        // Call events stream
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, CALL_EVENTS).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    CallManager.setEventSink(events)
+                }
+                override fun onCancel(arguments: Any?) {
+                    CallManager.setEventSink(null)
+                }
+            }
+        )
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        handleIncomingCallIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIncomingCallIntent(intent)
+    }
+
+    private fun handleIncomingCallIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra("incoming_call", false) == true) {
+            val number = intent.getStringExtra("caller_number") ?: "Unknown"
+            val name = intent.getStringExtra("caller_name") ?: ""
+            
+            // Send to Flutter via method channel
+            flutterEngine?.dartExecutor?.binaryMessenger?.let { messenger ->
+                MethodChannel(messenger, CALL_CHANNEL).invokeMethod(
+                    "incomingCall",
+                    mapOf("number" to number, "name" to name)
+                )
             }
         }
     }
