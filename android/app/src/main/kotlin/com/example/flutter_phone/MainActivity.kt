@@ -103,22 +103,30 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun makePhoneCall(number: String) {
+        android.util.Log.d("FlutterPhone", "makePhoneCall called with: $number")
+        
         // Check permission
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) 
             != PackageManager.PERMISSION_GRANTED) {
+            android.util.Log.w("FlutterPhone", "CALL_PHONE permission not granted, requesting...")
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CALL_PHONE), 1)
             return
         }
         
         try {
-            // Use telecom manager if we're the default dialer
             val telecomManager = getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-            if (telecomManager.defaultDialerPackage == packageName) {
+            val isDefaultDialer = telecomManager.defaultDialerPackage == packageName
+            android.util.Log.d("FlutterPhone", "Is default dialer: $isDefaultDialer")
+            
+            if (isDefaultDialer) {
+                // Use TelecomManager.placeCall when we're the default dialer
                 val uri = Uri.fromParts("tel", number, null)
                 val extras = Bundle()
+                android.util.Log.d("FlutterPhone", "Placing call via TelecomManager: $uri")
                 telecomManager.placeCall(uri, extras)
             } else {
-                // Fallback to ACTION_CALL intent
+                // Use ACTION_CALL intent
+                android.util.Log.d("FlutterPhone", "Placing call via ACTION_CALL intent")
                 val intent = Intent(Intent.ACTION_CALL).apply {
                     data = Uri.parse("tel:$number")
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -126,12 +134,16 @@ class MainActivity : FlutterActivity() {
                 startActivity(intent)
             }
         } catch (e: SecurityException) {
+            android.util.Log.e("FlutterPhone", "SecurityException: ${e.message}")
             e.printStackTrace()
             // Fallback to dial intent if no permission
             val intent = Intent(Intent.ACTION_DIAL).apply {
                 data = Uri.parse("tel:$number")
             }
             startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("FlutterPhone", "Exception making call: ${e.message}")
+            e.printStackTrace()
         }
     }
 

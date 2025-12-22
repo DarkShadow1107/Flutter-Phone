@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'call_end_screen.dart';
@@ -78,6 +79,24 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
       curve: Curves.easeOutCubic,
     );
 
+    // Listen to native call state changes
+    _callStateSubscription = callService.onCallStateChanged.listen((state) {
+      debugPrint('CallScreen: Native call state changed to $state');
+      
+      if (state == NativeCallState.disconnected) {
+        // Remote party hung up - close this screen
+        debugPrint('CallScreen: Call disconnected by remote, closing');
+        if (mounted) {
+          _endCall();
+        }
+      } else if (state == NativeCallState.active && _callState != CallState.connected) {
+        // Call became active (answered)
+        if (mounted) {
+          setState(() => _callState = CallState.connected);
+        }
+      }
+    });
+
     // Simulate call state transitions for outgoing calls
     if (!widget.isIncoming) {
       _simulateCallProgress();
@@ -86,6 +105,8 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     // Call timer - only runs when connected
     _startCallTimer();
   }
+
+  StreamSubscription? _callStateSubscription;
 
   void _simulateCallProgress() async {
     // Dialing phase
@@ -120,6 +141,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _callStateSubscription?.cancel();
     _pulseController.dispose();
     _waveController.dispose();
     _entranceController.dispose();

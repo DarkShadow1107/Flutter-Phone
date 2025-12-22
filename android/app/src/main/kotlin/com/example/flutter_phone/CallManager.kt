@@ -77,17 +77,21 @@ object CallManager {
         val details = call.details
         val handle = details?.handle
         val number = handle?.schemeSpecificPart ?: "Unknown"
+        val stateString = getStateString(state)
+        
+        android.util.Log.d("FlutterPhone", "Call state changed: $stateString for $number")
         
         val stateInfo = mapOf(
             "event" to "stateChanged",
             "number" to number,
-            "state" to getStateString(state)
+            "state" to stateString
         )
         
         eventSink?.success(stateInfo)
         
         // If call ended, clear current call
         if (state == Call.STATE_DISCONNECTED) {
+            android.util.Log.d("FlutterPhone", "Call disconnected, clearing current call")
             currentCall?.unregisterCallback(callCallback)
             currentCall = null
         }

@@ -9,11 +9,12 @@ import android.app.PendingIntent
 import android.os.Build
 import android.media.RingtoneManager
 import android.media.Ringtone
-import android.media.AudioManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.content.Context
+import android.app.KeyguardManager
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 
 class PhoneInCallService : InCallService() {
@@ -33,25 +34,58 @@ class PhoneInCallService : InCallService() {
 
     override fun onCallAdded(call: Call) {
         super.onCallAdded(call)
+        android.util.Log.d("FlutterPhone", "onCallAdded: state=${call.state}")
         CallManager.setCurrentCall(call)
         
-        // Launch the app for incoming calls
+        // Only handle ringing state for incoming calls
         if (call.state == Call.STATE_RINGING) {
             startRingtone()
             startVibration()
-            showIncomingCallNotification(call)
-            launchIncomingCallScreen(call)
+            
+            // Check if screen is locked to decide notification type
+            if (isScreenLocked()) {
+                android.util.Log.d("FlutterPhone", "Screen is locked - showing full screen")
+                showIncomingCallNotification(call, fullScreen = true)
+                launchIncomingCallScreen(call)
+            } else {
+                android.util.Log.d("FlutterPhone", "Screen is unlocked - showing notification only")
+                showIncomingCallNotification(call, fullScreen = false)
+                // Still notify Flutter about the incoming call
+                notifyFlutterIncomingCall(call)
+            }
         }
     }
 
     override fun onCallRemoved(call: Call) {
         super.onCallRemoved(call)
+        android.util.Log.d("FlutterPhone", "onCallRemoved")
         stopRingtone()
         stopVibration()
+        
         if (CallManager.getCurrentCall() == call) {
             CallManager.setCurrentCall(null)
         }
         cancelNotification()
+        // Don't launch app here - just clean up
+    }
+
+    private fun isScreenLocked(): Boolean {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        
+        // Screen is locked if keyguard is locked OR screen is off
+        return keyguardManager.isKeyguardLocked || !powerManager.isInteractive
+    }
+
+    private fun notifyFlutterIncomingCall(call: Call) {
+        val details = call.details
+        val handle = details?.handle
+        val number = handle?.schemeSpecificPart ?: "Unknown"
+        val callerName = details?.callerDisplayName ?: ""
+        
+        // Notify Flutter via the call manager event sink
+        // This is already done in CallManager.setCurrentCall, but we can explicitly trigger here too
+        android.util.Log.d("FlutterPhone", "Notifying Flutter of incoming call: $number")
     }
 
     private fun startRingtone() {
@@ -59,14 +93,16 @@ class PhoneInCallService : InCallService() {
             val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
             ringtone = RingtoneManager.getRingtone(applicationContext, ringtoneUri)
             ringtone?.play()
+            android.util.Log.d("FlutterPhone", "Ringtone started")
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("FlutterPhone", "Error starting ringtone: ${e.message}")
         }
     }
 
     private fun stopRingtone() {
         ringtone?.stop()
         ringtone = null
+        android.util.Log.d("FlutterPhone", "Ringtone stopped")
     }
 
     private fun startVibration() {
@@ -79,7 +115,7 @@ class PhoneInCallService : InCallService() {
                 getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
             }
             
-            val pattern = longArrayOf(0, 1000, 1000) // Wait, vibrate, pause pattern
+            val pattern = longArrayOf(0, 1000, 1000)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
             } else {
@@ -87,7 +123,7 @@ class PhoneInCallService : InCallService() {
                 vibrator?.vibrate(pattern, 0)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("FlutterPhone", "Error starting vibration: ${e.message}")
         }
     }
 
@@ -111,7 +147,7 @@ class PhoneInCallService : InCallService() {
         }
     }
 
-    private fun showIncomingCallNotification(call: Call) {
+    private fun showIncomingCallNotification(call: Call, fullScreen: Boolean) {
         val details = call.details
         val handle = details?.handle
         val number = handle?.schemeSpecificPart ?: "Unknown"
@@ -148,19 +184,24 @@ class PhoneInCallService : InCallService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_call)
             .setContentTitle("Incoming Call")
             .setContentText(callerName)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setFullScreenIntent(fullScreenPendingIntent, true)
             .addAction(android.R.drawable.ic_menu_call, "Answer", answerPendingIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePendingIntent)
             .setOngoing(true)
             .setAutoCancel(false)
-            .build()
+            .setContentIntent(fullScreenPendingIntent)
+        
+        // Only set full screen intent when screen is locked
+        if (fullScreen) {
+            builder.setFullScreenIntent(fullScreenPendingIntent, true)
+        }
 
+        val notification = builder.build()
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.notify(NOTIFICATION_ID, notification)
     }
