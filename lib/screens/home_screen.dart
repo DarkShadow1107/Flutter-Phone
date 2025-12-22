@@ -87,30 +87,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     });
   }
 
+  static bool permissionsRequested = false;
+  
   Future<void> _requestPermissions() async {
-    // Request critical permissions first
-    final criticalPermissions = [
+    if (permissionsRequested) return;
+    permissionsRequested = true;
+    
+    // Request all permissions sequentially to avoid race conditions
+    final allPermissions = [
       Permission.phone,
       Permission.contacts,
-    ];
-
-    for (var permission in criticalPermissions) {
-      final status = await permission.request();
-      debugPrint('Permission ${permission.toString()}: $status');
-      await Future.delayed(const Duration(milliseconds: 200));
-    }
-
-    // Then request other permissions
-    final otherPermissions = [
       Permission.microphone,
       Permission.camera,
       Permission.notification,
     ];
 
-    for (var permission in otherPermissions) {
-      await permission.request();
-      await Future.delayed(const Duration(milliseconds: 100));
+    for (var permission in allPermissions) {
+      try {
+        final status = await permission.request();
+        debugPrint('Permission ${permission.toString()}: $status');
+      } catch (e) {
+        debugPrint('Error requesting $permission: $e');
+      }
+      // Wait between requests to avoid race condition
+      await Future.delayed(const Duration(milliseconds: 500));
     }
+    
+    debugPrint('All permissions requested');
   }
 
   void _onTabChanged(int index) {

@@ -48,6 +48,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   StreamSubscription? _incomingCallSubscription;
+  String? _currentIncomingNumber;
+  bool _isShowingIncomingCall = false;
 
   @override
   void initState() {
@@ -64,6 +66,15 @@ class _MyAppState extends State<MyApp> {
   void _listenForIncomingCalls() {
     _incomingCallSubscription = callService.onIncomingCall.listen((callInfo) {
       debugPrint('MyApp: Received incoming call from ${callInfo.number}');
+      
+      // Prevent duplicate screens for same number
+      if (_isShowingIncomingCall && _currentIncomingNumber == callInfo.number) {
+        debugPrint('MyApp: Already showing incoming call screen, ignoring duplicate');
+        return;
+      }
+      
+      _currentIncomingNumber = callInfo.number;
+      _isShowingIncomingCall = true;
       
       // Navigate to call screen
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -87,7 +98,11 @@ class _MyAppState extends State<MyApp> {
               );
             },
           ),
-        );
+        ).then((_) {
+          // Reset when screen is popped
+          _isShowingIncomingCall = false;
+          _currentIncomingNumber = null;
+        });
       });
     });
   }

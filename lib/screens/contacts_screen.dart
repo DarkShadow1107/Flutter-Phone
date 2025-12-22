@@ -20,35 +20,46 @@ class ContactsScreen extends StatefulWidget {
 class _ContactsScreenState extends State<ContactsScreen> {
   List<Map<String, dynamic>> contacts = [];
   bool _isLoading = true;
+  bool _permissionDenied = false;
+  bool _hasError = false;
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    _loadContacts();
+    // Delay loading to allow HomeScreen to request permissions first
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) _loadContacts();
+    });
   }
 
   Future<void> _loadContacts() async {
     try {
-      // Check permission first
+      // Only check permission status - HomeScreen handles requests
       final status = await Permission.contacts.status;
+      debugPrint('Contacts permission status: $status');
+      
       if (!status.isGranted) {
-        final result = await Permission.contacts.request();
-        if (!result.isGranted) {
-          if (mounted) {
-            setState(() => _isLoading = false);
-          }
-          return;
+        debugPrint('Contacts permission not granted');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _permissionDenied = true;
+          });
         }
+        return;
       }
 
       final sw = Stopwatch()..start();
+      debugPrint('Loading contacts...');
+      
       final deviceContacts = await FastContacts.getAllContacts();
+      debugPrint('Got ${deviceContacts.length} raw contacts');
       
       final List<Map<String, dynamic>> loadedContacts = [];
       int count = 0;
       for (var contact in deviceContacts) {
-        if (count >= 200) break; // Limit for performance
+        if (count >= 300) break; // Limit for performance
         if (contact.phones.isNotEmpty) {
           loadedContacts.add({
             'name': contact.displayName.isNotEmpty ? contact.displayName : 'Unknown',
@@ -64,6 +75,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
         setState(() {
           contacts = loadedContacts;
           _isLoading = false;
+          _permissionDenied = false;
         });
         debugPrint('Loaded ${contacts.length} contacts in ${sw.elapsedMilliseconds}ms');
       }
@@ -71,7 +83,10 @@ class _ContactsScreenState extends State<ContactsScreen> {
       debugPrint('Error loading contacts: $e');
       debugPrint('Stack: $stack');
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
       }
     }
   }
@@ -202,20 +217,83 @@ class _ContactsScreenState extends State<ContactsScreen> {
         Expanded(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
-              : filteredContacts.isEmpty
+              : _permissionDenied
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.person_off_outlined, size: 64, color: isDark ? Colors.white24 : Colors.black12),
+                          Icon(Icons.contacts_outlined, size: 64, color: isDark ? Colors.white24 : Colors.black12),
                           const SizedBox(height: 16),
                           Text(
-                            _searchQuery.isEmpty ? 'No contacts found' : 'No results for "$_searchQuery"',
-                            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                            'Contacts permission required',
+                            style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 16),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Please grant access to see your contacts',
+                            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 13),
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            onPressed: () async {
+                              await openAppSettings();
+                            },
+                            icon: const Icon(Icons.settings),
+                            label: const Text('Open Settings'),
+                          ),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _isLoading = true;
+                                _permissionDenied = false;
+                              });
+                              _loadContacts();
+                            },
+                            child: const Text('Try Again'),
                           ),
                         ],
                       ),
                     )
+                  : _hasError
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.error_outline, size: 64, color: Colors.red.withAlpha(120)),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Error loading contacts',
+                                style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 16),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _isLoading = true;
+                                    _hasError = false;
+                                  });
+                                  _loadContacts();
+                                },
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        )
+                      : filteredContacts.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.person_off_outlined, size: 64, color: isDark ? Colors.white24 : Colors.black12),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _searchQuery.isEmpty ? 'No contacts found' : 'No results for "$_searchQuery"',
+                                    style: TextStyle(color: isDark ? Colors.white38 : Colors.black38),
+                                  ),
+                                ],
+                              ),
+                            )
                   : ListView(
                       padding: const EdgeInsets.only(bottom: 100),
                       children: [

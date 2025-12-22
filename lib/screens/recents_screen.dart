@@ -22,21 +22,21 @@ class _RecentsScreenState extends State<RecentsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadCallLogs();
+    // Delay loading to allow HomeScreen to request permissions first
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted) _loadCallLogs();
+    });
   }
 
   Future<void> _loadCallLogs() async {
     try {
-      // Check permission first
+      // Only check permission status - HomeScreen handles requests
       final status = await Permission.phone.status;
       if (!status.isGranted) {
-        final result = await Permission.phone.request();
-        if (!result.isGranted) {
-          if (mounted) {
-            setState(() => _isLoading = false);
-          }
-          return;
+        if (mounted) {
+          setState(() => _isLoading = false);
         }
+        return;
       }
 
       final Iterable<CallLogEntry> entries = await CallLog.get();

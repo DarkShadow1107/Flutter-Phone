@@ -10,6 +10,10 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class MainActivity : FlutterActivity() {
     private val DIALER_CHANNEL = "com.example.flutter_phone/dialer"
@@ -61,10 +65,7 @@ class MainActivity : FlutterActivity() {
                 "makeCall" -> {
                     val number = call.argument<String>("number")
                     if (number != null) {
-                        val intent = Intent(Intent.ACTION_CALL).apply {
-                            data = Uri.parse("tel:$number")
-                        }
-                        startActivity(intent)
+                        makePhoneCall(number)
                         result.success(true)
                     } else {
                         result.error("INVALID_NUMBER", "Phone number is required", null)
@@ -99,6 +100,39 @@ class MainActivity : FlutterActivity() {
                 }
             }
         )
+    }
+
+    private fun makePhoneCall(number: String) {
+        // Check permission
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE) 
+            != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CALL_PHONE), 1)
+            return
+        }
+        
+        try {
+            // Use telecom manager if we're the default dialer
+            val telecomManager = getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            if (telecomManager.defaultDialerPackage == packageName) {
+                val uri = Uri.fromParts("tel", number, null)
+                val extras = Bundle()
+                telecomManager.placeCall(uri, extras)
+            } else {
+                // Fallback to ACTION_CALL intent
+                val intent = Intent(Intent.ACTION_CALL).apply {
+                    data = Uri.parse("tel:$number")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+            }
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+            // Fallback to dial intent if no permission
+            val intent = Intent(Intent.ACTION_DIAL).apply {
+                data = Uri.parse("tel:$number")
+            }
+            startActivity(intent)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

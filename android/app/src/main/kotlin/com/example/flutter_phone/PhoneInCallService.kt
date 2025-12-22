@@ -7,6 +7,13 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.os.Build
+import android.media.RingtoneManager
+import android.media.Ringtone
+import android.media.AudioManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.content.Context
 import androidx.core.app.NotificationCompat
 
 class PhoneInCallService : InCallService() {
@@ -15,6 +22,9 @@ class PhoneInCallService : InCallService() {
         const val CHANNEL_ID = "incoming_call_channel"
         const val NOTIFICATION_ID = 1001
     }
+
+    private var ringtone: Ringtone? = null
+    private var vibrator: Vibrator? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -27,6 +37,8 @@ class PhoneInCallService : InCallService() {
         
         // Launch the app for incoming calls
         if (call.state == Call.STATE_RINGING) {
+            startRingtone()
+            startVibration()
             showIncomingCallNotification(call)
             launchIncomingCallScreen(call)
         }
@@ -34,10 +46,54 @@ class PhoneInCallService : InCallService() {
 
     override fun onCallRemoved(call: Call) {
         super.onCallRemoved(call)
+        stopRingtone()
+        stopVibration()
         if (CallManager.getCurrentCall() == call) {
             CallManager.setCurrentCall(null)
         }
         cancelNotification()
+    }
+
+    private fun startRingtone() {
+        try {
+            val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            ringtone = RingtoneManager.getRingtone(applicationContext, ringtoneUri)
+            ringtone?.play()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopRingtone() {
+        ringtone?.stop()
+        ringtone = null
+    }
+
+    private fun startVibration() {
+        try {
+            vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+            
+            val pattern = longArrayOf(0, 1000, 1000) // Wait, vibrate, pause pattern
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(pattern, 0)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopVibration() {
+        vibrator?.cancel()
+        vibrator = null
     }
 
     private fun createNotificationChannel() {
@@ -48,7 +104,7 @@ class PhoneInCallService : InCallService() {
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
                 description = descriptionText
                 setSound(null, null)
-                enableVibration(true)
+                enableVibration(false)
             }
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
