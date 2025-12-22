@@ -7,6 +7,8 @@ import 'recents_screen.dart';
 import 'contacts_screen.dart';
 import 'settings_screen.dart';
 import 'call_screen.dart';
+import '../services/data_cache.dart';
+import '../services/phone_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -110,10 +112,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         debugPrint('Error requesting $permission: $e');
       }
       // Wait between requests to avoid race condition
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 300));
     }
     
-    debugPrint('All permissions requested');
+    debugPrint('All permissions requested, preloading data...');
+    
+    // Preload data in background
+    dataCache.loadContacts();
+    dataCache.loadCallLogs();
   }
 
   void _onTabChanged(int index) {
@@ -124,13 +130,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _makeCall(String number) {
+  void _makeCall(String number) async {
+    final cleanNumber = PhoneUtils.cleanPhoneNumber(number);
+    
+    // Place the actual call
+    await PhoneUtils.makeCall(cleanNumber);
+    
+    if (!mounted) return;
+    
+    // Show call UI
     Navigator.push(
       context,
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => CallScreen(
           name: number,
-          number: number,
+          number: cleanNumber,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return SlideTransition(
@@ -141,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             child: child,
           );
         },
-        transitionDuration: const Duration(milliseconds: 200),
+        transitionDuration: const Duration(milliseconds: 100),
       ),
     );
   }
@@ -241,32 +255,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 else
                   const SizedBox(height: 16),
 
-                // Content with animation
+                // Content - instant switch with IndexedStack
                 Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    transitionBuilder: (child, animation) {
-                      return FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0.05, 0),
-                            end: Offset.zero,
-                          ).animate(animation),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: IndexedStack(
-                      key: ValueKey(_selectedIndex),
-                      index: _selectedIndex,
-                      children: [
-                        KeypadScreen(onCall: _makeCall),
-                        const RecentsScreen(),
-                        ContactsScreen(onCall: _makeCall),
-                        const SettingsScreen(),
-                      ],
-                    ),
+                  child: IndexedStack(
+                    index: _selectedIndex,
+                    children: [
+                      KeypadScreen(onCall: _makeCall),
+                      const RecentsScreen(),
+                      ContactsScreen(onCall: _makeCall),
+                      const SettingsScreen(),
+                    ],
                   ),
                 ),
               ],

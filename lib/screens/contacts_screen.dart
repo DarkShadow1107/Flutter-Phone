@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
-import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'call_screen.dart';
 import 'contact_detail_screen.dart';
 import 'edit_contact_screen.dart';
 import '../widgets/swipe_action_widget.dart';
 import '../services/phone_utils.dart';
+import '../services/data_cache.dart';
 
 class ContactsScreen extends StatefulWidget {
   final Function(String)? onCall;
@@ -27,20 +27,24 @@ class _ContactsScreenState extends State<ContactsScreen> {
   @override
   void initState() {
     super.initState();
-    // Delay loading to allow HomeScreen to request permissions first
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) _loadContacts();
-    });
+    _loadContacts();
   }
 
   Future<void> _loadContacts() async {
+    // Use cached data
+    if (dataCache.contactsLoaded) {
+      if (mounted) {
+        setState(() {
+          contacts = dataCache.contacts;
+          _isLoading = false;
+        });
+      }
+      return;
+    }
+
     try {
-      // Only check permission status - HomeScreen handles requests
       final status = await Permission.contacts.status;
-      debugPrint('Contacts permission status: $status');
-      
       if (!status.isGranted) {
-        debugPrint('Contacts permission not granted');
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -50,48 +54,17 @@ class _ContactsScreenState extends State<ContactsScreen> {
         return;
       }
 
-      final sw = Stopwatch()..start();
-      debugPrint('Loading contacts with flutter_contacts...');
+      final loadedContacts = await dataCache.loadContacts();
       
-      // Use flutter_contacts - get contacts with phone numbers and thumbnails
-      final deviceContacts = await FlutterContacts.getContacts(
-        withProperties: true,
-        withPhoto: true,
-        withThumbnail: true,
-      );
-      debugPrint('Got ${deviceContacts.length} raw contacts');
-      
-      final List<Map<String, dynamic>> loadedContacts = [];
-      int count = 0;
-      for (var contact in deviceContacts) {
-        if (count >= 300) break; // Limit for performance
-        if (contact.phones.isNotEmpty) {
-          final phone = contact.phones.first.number;
-          final cleanedNumber = PhoneUtils.cleanPhoneNumber(phone);
-          loadedContacts.add({
-            'id': contact.id,
-            'name': contact.displayName.isNotEmpty ? contact.displayName : 'Unknown',
-            'number': cleanedNumber,
-            'displayNumber': phone, // Keep original for display
-            'color': Colors.primaries[loadedContacts.length % Colors.primaries.length],
-            'favorite': contact.isStarred,
-            'photo': contact.thumbnail, // Uint8List or null
-          });
-          count++;
-        }
-      }
-
       if (mounted) {
         setState(() {
           contacts = loadedContacts;
           _isLoading = false;
           _permissionDenied = false;
         });
-        debugPrint('Loaded ${contacts.length} contacts in ${sw.elapsedMilliseconds}ms');
       }
-    } catch (e, stack) {
+    } catch (e) {
       debugPrint('Error loading contacts: $e');
-      debugPrint('Stack: $stack');
       if (mounted) {
         setState(() {
           _isLoading = false;
