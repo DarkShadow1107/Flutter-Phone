@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
 import 'call_screen.dart';
+import '../services/phone_utils.dart';
 
 class KeypadScreen extends StatefulWidget {
   final Function(String) onCall;
@@ -48,35 +48,40 @@ class _KeypadScreenState extends State<KeypadScreen> with SingleTickerProviderSt
     }
   }
 
-  void _makeCall() {
+  void _makeCall() async {
     if (_phoneNumber.isNotEmpty) {
-      Navigator.push(
-        context,
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) => CallScreen(
-            name: _phoneNumber,
-            number: _phoneNumber,
-            contactColor: Colors.blue,
+      final cleanNumber = PhoneUtils.cleanPhoneNumber(_phoneNumber);
+      
+      // First try to place actual call via native
+      await PhoneUtils.makeCall(cleanNumber);
+      
+      // Then show our call UI
+      if (mounted) {
+        Navigator.push(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => CallScreen(
+              name: _phoneNumber,
+              number: cleanNumber,
+              contactColor: Colors.blue,
+            ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+                    .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                child: child,
+              );
+            },
+            transitionDuration: const Duration(milliseconds: 200),
           ),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return SlideTransition(
-              position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-                  .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-              child: child,
-            );
-          },
-          transitionDuration: const Duration(milliseconds: 200),
-        ),
-      );
+        );
+      }
     }
   }
 
   Future<void> _sendMessage() async {
     if (_phoneNumber.isNotEmpty) {
-      final Uri smsUri = Uri.parse('sms:$_phoneNumber');
-      if (await canLaunchUrl(smsUri)) {
-        await launchUrl(smsUri);
-      }
+      await PhoneUtils.sendSms(_phoneNumber);
     }
   }
 

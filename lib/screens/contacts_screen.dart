@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'dart:ui';
-import 'package:fast_contacts/fast_contacts.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'call_screen.dart';
 import 'contact_detail_screen.dart';
 import 'edit_contact_screen.dart';
 import '../widgets/swipe_action_widget.dart';
+import '../services/phone_utils.dart';
 
 class ContactsScreen extends StatefulWidget {
   final Function(String)? onCall;
@@ -51,9 +51,14 @@ class _ContactsScreenState extends State<ContactsScreen> {
       }
 
       final sw = Stopwatch()..start();
-      debugPrint('Loading contacts...');
+      debugPrint('Loading contacts with flutter_contacts...');
       
-      final deviceContacts = await FastContacts.getAllContacts();
+      // Use flutter_contacts - get contacts with phone numbers and thumbnails
+      final deviceContacts = await FlutterContacts.getContacts(
+        withProperties: true,
+        withPhoto: true,
+        withThumbnail: true,
+      );
       debugPrint('Got ${deviceContacts.length} raw contacts');
       
       final List<Map<String, dynamic>> loadedContacts = [];
@@ -61,11 +66,16 @@ class _ContactsScreenState extends State<ContactsScreen> {
       for (var contact in deviceContacts) {
         if (count >= 300) break; // Limit for performance
         if (contact.phones.isNotEmpty) {
+          final phone = contact.phones.first.number;
+          final cleanedNumber = PhoneUtils.cleanPhoneNumber(phone);
           loadedContacts.add({
+            'id': contact.id,
             'name': contact.displayName.isNotEmpty ? contact.displayName : 'Unknown',
-            'number': contact.phones.first,
+            'number': cleanedNumber,
+            'displayNumber': phone, // Keep original for display
             'color': Colors.primaries[loadedContacts.length % Colors.primaries.length],
-            'favorite': false,
+            'favorite': contact.isStarred,
+            'photo': contact.thumbnail, // Uint8List or null
           });
           count++;
         }
@@ -110,10 +120,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   Future<void> _sendMessage(String number) async {
-    final Uri smsUri = Uri.parse('sms:$number');
-    if (await canLaunchUrl(smsUri)) {
-      await launchUrl(smsUri);
-    }
+    await PhoneUtils.sendSms(number);
   }
 
   void _addNewContact() async {
