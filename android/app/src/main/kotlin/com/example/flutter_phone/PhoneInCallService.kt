@@ -144,35 +144,68 @@ class PhoneInCallService : InCallService() {
         return keyguardManager.isKeyguardLocked || !powerManager.isInteractive
     }
 
+    private fun getContactName(number: String): String? {
+        val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+        val projection = arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME)
+        var contactName: String? = null
+        
+        try {
+            contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    contactName = cursor.getString(0)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FlutterPhone", "Error looking up contact name: ${e.message}")
+        }
+        return contactName
+    }
+
     private fun getContactPhoto(number: String): Bitmap? {
         val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
-        val projection = arrayOf(ContactsContract.PhoneLookup.PHOTO_URI)
+        val projection = arrayOf(ContactsContract.PhoneLookup.PHOTO_URI, ContactsContract.PhoneLookup._ID)
         var photoBitmap: Bitmap? = null
         
-        contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val photoUri = cursor.getString(0)
-                if (photoUri != null) {
-                    try {
+        try {
+            contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val photoUri = cursor.getString(0)
+                    if (photoUri != null) {
                         val inputStream = contentResolver.openInputStream(Uri.parse(photoUri))
                         photoBitmap = BitmapFactory.decodeStream(inputStream)
-                    } catch (e: Exception) {
-                        android.util.Log.e("FlutterPhone", "Error loading contact photo: ${e.message}")
                     }
                 }
             }
+        } catch (e: Exception) {
+            android.util.Log.e("FlutterPhone", "Error loading contact photo: ${e.message}")
         }
         return photoBitmap
+    }
+
+    private fun getContactId(number: String): String? {
+        val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+        val projection = arrayOf(ContactsContract.PhoneLookup._ID)
+        var contactId: String? = null
+        try {
+            contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    contactId = cursor.getString(0)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FlutterPhone", "Error looking up contact ID: ${e.message}")
+        }
+        return contactId
     }
 
     private fun showIncomingCallNotification(call: Call) {
         val details = call.details
         val handle = details?.handle
         val number = handle?.schemeSpecificPart ?: "Unknown"
-        val callerName = details?.callerDisplayName ?: number
+        val callerName = details?.callerDisplayName ?: getContactName(number) ?: number
         val contactPhoto = getContactPhoto(number)
+        val contactId = getContactId(number)
 
-        // Screen is locked? System handles full screen intent automatically if provided
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("incoming_call", true)
@@ -191,23 +224,26 @@ class PhoneInCallService : InCallService() {
         val declineIntent = Intent(this, CallActionReceiver::class.java).apply { action = "DECLINE_CALL" }
         val declinePendingIntent = PendingIntent.getBroadcast(this, 2, declineIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
-        // One UI 7 Style: Minimalist Pill-like notification
+        val person = androidx.core.app.Person.Builder()
+            .setName(callerName)
+            .setIcon(if (contactPhoto != null) androidx.core.graphics.drawable.IconCompat.createWithBitmap(contactPhoto) else null)
+            .setUri("tel:$number")
+            .setKey(contactId ?: number)
+            .build()
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_call)
-            .setContentTitle(callerName)
-            .setContentText("Incoming call")
-            .setLargeIcon(contactPhoto)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
-            .setAutoCancel(false)
-            .setShowWhen(false)
-            .addPerson("tel:$number")
-            .setFullScreenIntent(pendingIntent, true) 
+            .setFullScreenIntent(pendingIntent, true)
             .setColor(0xFF000000.toInt())
-            .addAction(NotificationCompat.Action.Builder(0, "Answer", answerPendingIntent).build())
-            .addAction(NotificationCompat.Action.Builder(0, "Decline", declinePendingIntent).build())
+            .setStyle(
+                NotificationCompat.CallStyle.forIncomingCall(
+                    person, declinePendingIntent, answerPendingIntent
+                )
+            )
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             builder.setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
@@ -220,8 +256,9 @@ class PhoneInCallService : InCallService() {
     private fun showOngoingCallNotification(call: Call) {
         val details = call.details
         val number = details?.handle?.schemeSpecificPart ?: "Unknown"
-        val callerName = details?.callerDisplayName ?: number
+        val callerName = details?.callerDisplayName ?: getContactName(number) ?: number
         val contactPhoto = getContactPhoto(number)
+        val contactId = getContactId(number)
 
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -231,23 +268,29 @@ class PhoneInCallService : InCallService() {
         val hangupIntent = Intent(this, CallActionReceiver::class.java).apply { action = "DECLINE_CALL" }
         val hangupPendingIntent = PendingIntent.getBroadcast(this, 3, hangupIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
 
+        val person = androidx.core.app.Person.Builder()
+            .setName(callerName)
+            .setIcon(if (contactPhoto != null) androidx.core.graphics.drawable.IconCompat.createWithBitmap(contactPhoto) else null)
+            .setUri("tel:$number")
+            .setKey(contactId ?: number)
+            .build()
+
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_call)
-            .setContentTitle(callerName)
-            .setContentText("Ongoing call")
-            .setLargeIcon(contactPhoto)
-            .setPriority(NotificationCompat.PRIORITY_LOW) // Ongoing calls shouldn't pop up
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
-            .setUsesChronometer(true)
-            .setColor(0xFF4CAF50.toInt()) // Green for active call
+            .setColor(0xFF4CAF50.toInt())
+            .setStyle(
+                NotificationCompat.CallStyle.forOngoingCall(
+                    person, hangupPendingIntent
+                )
+            )
             .setContentIntent(pendingIntent)
-            .addAction(NotificationCompat.Action.Builder(0, "End Call", hangupPendingIntent).build())
 
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.notify(NOTIFICATION_ID, builder.build())
     }
-
     private fun cancelNotification() {
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationManager.cancel(NOTIFICATION_ID)

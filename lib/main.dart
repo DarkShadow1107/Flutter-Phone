@@ -79,11 +79,12 @@ class _MyAppState extends State<MyApp> {
 
   void _listenForIncomingCalls() {
     _incomingCallSubscription = callService.onIncomingCall.listen((callInfo) {
+      if (!mounted) return;
       debugPrint('MyApp: Received incoming call from ${callInfo.number}');
       
       // Prevent duplicate screens for same number
-      if (_isShowingIncomingCall && _currentIncomingNumber == callInfo.number) {
-        debugPrint('MyApp: Already showing incoming call screen, ignoring duplicate');
+      if (_isShowingIncomingCall) {
+        debugPrint('MyApp: Already showing incoming call screen, ignoring');
         return;
       }
       

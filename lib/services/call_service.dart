@@ -41,6 +41,9 @@ class CallService {
   StreamSubscription? _eventSubscription;
   bool _isInitialized = false;
 
+  String? _lastIncomingNumber;
+  DateTime? _lastIncomingTime;
+
   void initialize() {
     if (_isInitialized) return;
     _isInitialized = true;
@@ -49,12 +52,10 @@ class CallService {
     _callChannel.setMethodCallHandler((call) async {
       if (call.method == 'incomingCall') {
         final args = call.arguments as Map<dynamic, dynamic>;
-        final info = IncomingCallInfo(
-          number: args['number'] as String? ?? 'Unknown',
-          name: args['name'] as String? ?? '',
+        _handleIncomingCallData(
+          args['number'] as String? ?? 'Unknown',
+          args['name'] as String? ?? '',
         );
-        _incomingCallController.add(info);
-        debugPrint('CallService: Incoming call from ${info.number}');
       }
       return null;
     });
@@ -67,16 +68,21 @@ class CallService {
           final state = event['state'] as String?;
           
           if (eventType == 'incoming') {
-            final info = IncomingCallInfo(
-              number: event['number'] as String? ?? 'Unknown',
-              name: event['name'] as String? ?? '',
+            _handleIncomingCallData(
+              event['number'] as String? ?? 'Unknown',
+              event['name'] as String? ?? '',
             );
-            _incomingCallController.add(info);
           }
           
           if (state != null) {
             _currentState = _parseState(state);
             _callStateController.add(_currentState);
+            
+            // Clear tracking when call ends
+            if (_currentState == NativeCallState.disconnected || _currentState == NativeCallState.idle) {
+              _lastIncomingNumber = null;
+            }
+            
             debugPrint('CallService: State changed to $_currentState');
           }
         }
@@ -87,6 +93,24 @@ class CallService {
     );
 
     debugPrint('CallService: Initialized');
+  }
+
+  void _handleIncomingCallData(String number, String name) {
+    // Deduplicate: If same number within 2 seconds, ignore
+    final now = DateTime.now();
+    if (_lastIncomingNumber == number && 
+        _lastIncomingTime != null && 
+        now.difference(_lastIncomingTime!).inSeconds < 2) {
+      debugPrint('CallService: Ignoring duplicate incoming call event for $number');
+      return;
+    }
+    
+    _lastIncomingNumber = number;
+    _lastIncomingTime = now;
+    
+    final info = IncomingCallInfo(number: number, name: name);
+    _incomingCallController.add(info);
+    debugPrint('CallService: Notifying of incoming call from $number');
   }
 
   NativeCallState _parseState(String state) {
