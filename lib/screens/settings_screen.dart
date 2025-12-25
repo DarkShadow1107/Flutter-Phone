@@ -5,6 +5,8 @@ import 'blocked_numbers_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'help_feedback_screen.dart';
 import 'ringtone_screen.dart';
+import '../services/settings_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -156,7 +158,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     );
                   },
                 ),
-              );
+              ).then((_) {
+                if (mounted) setState(() {});
+              });
             },
           ),
           _buildGlassTile(
@@ -167,6 +171,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
               value: true,
               onChanged: (v) {},
             ),
+          ),
+        ]),
+
+        _buildSection(context, 'Permissions', [
+          _buildGlassTile(
+            context,
+            icon: Icons.layers_outlined,
+            title: 'Display over other apps',
+            subtitle: 'Required for incoming call UI',
+            onTap: () async {
+              if (await Permission.systemAlertWindow.isGranted) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Permission already granted')),
+                  );
+                }
+              } else {
+                await Permission.systemAlertWindow.request();
+              }
+            },
+          ),
+          _buildGlassTile(
+            context,
+            icon: Icons.settings_applications_outlined,
+            title: 'Modify system settings',
+            subtitle: 'Required for system ringtone control',
+            onTap: () async {
+              // openAppSettings() is a general fallback, but WRITE_SETTINGS 
+              // often needs a specific intent path. For now, open app settings.
+              await openAppSettings();
+            },
           ),
         ]),
 
@@ -257,35 +292,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withAlpha(8) : Colors.white.withAlpha(180),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isDark ? Colors.white.withAlpha(12) : Colors.black.withAlpha(6),
-            ),
-          ),
-          child: ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withAlpha(20),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
-            ),
-            title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-            subtitle: subtitle != null 
-                ? Text(subtitle, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black45)) 
-                : null,
-            trailing: trailing ?? (onTap != null ? Icon(Icons.chevron_right, size: 20, color: isDark ? Colors.white38 : Colors.black38) : null),
-            onTap: onTap,
-          ),
+    // Check if this is the Ringtone tile and update subtitle if needed
+    String? displaySubtitle = subtitle;
+    if (title == 'Ringtone') {
+      displaySubtitle = settingsService.getRingtoneName() ?? 'Default (Pixel Sound)';
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? Colors.white.withAlpha(12) : Colors.black.withAlpha(6),
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(isDark ? 30 : 5),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withAlpha(20),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+        subtitle: displaySubtitle != null 
+            ? Text(displaySubtitle, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black45)) 
+            : null,
+        trailing: trailing ?? (onTap != null ? Icon(Icons.chevron_right, size: 20, color: isDark ? Colors.white38 : Colors.black38) : null),
+        onTap: onTap,
       ),
     );
   }

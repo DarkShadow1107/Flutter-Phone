@@ -92,9 +92,28 @@ class _RingtoneScreenState extends State<RingtoneScreen> {
     }
   }
 
+  Future<void> _deleteRingtone(String name) async {
+    setState(() {
+      _systemRingtones.remove(name);
+      if (_selectedRingtone == name) {
+        _selectedRingtone = 'Default (Pixel Sound)';
+        settingsService.clearRingtone();
+      }
+    });
+    
+    // If it was a custom ringtone, we also want to forget the path
+    // For now we only support one custom ringtone in settingsService, 
+    // so clearing it is correct if that's the one we're deleting.
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Ringtone "$name" removed')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = Theme.of(context).colorScheme.primary;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -103,31 +122,25 @@ class _RingtoneScreenState extends State<RingtoneScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
-                child: const Icon(Icons.arrow_back, size: 20),
-              ),
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: const Icon(Icons.arrow_back, size: 20),
           ),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           IconButton(
-            icon: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
-                  child: const Icon(Icons.add, size: 20),
-                ),
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
+                borderRadius: BorderRadius.circular(12),
               ),
+              child: const Icon(Icons.add, size: 20),
             ),
             onPressed: _pickCustomRingtone,
           ),
@@ -149,66 +162,70 @@ class _RingtoneScreenState extends State<RingtoneScreen> {
             ),
           ),
           
-           // Orbs
-           Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, color: Theme.of(context).colorScheme.primary.withAlpha(20), boxShadow: [BoxShadow(color: Theme.of(context).colorScheme.primary.withAlpha(30), blurRadius: 100, spreadRadius: 20)]))),
-           Positioned(bottom: -50, left: -50, child: Container(width: 250, height: 250, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.purple.withAlpha(15), boxShadow: [BoxShadow(color: Colors.purple.withAlpha(20), blurRadius: 100, spreadRadius: 20)]))),
-           
-           // Blur Overlay
-           Positioned.fill(
-             child: BackdropFilter(
-               filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-               child: Container(color: Colors.transparent),
-             ),
-           ),
+          // Orbs - Simplified for performance
+          Positioned(top: -100, right: -100, child: Container(width: 300, height: 300, decoration: BoxDecoration(shape: BoxShape.circle, color: primaryColor.withAlpha(15)))),
+          Positioned(bottom: -50, left: -50, child: Container(width: 250, height: 250, decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.purple.withAlpha(10)))),
           
           // Content
           SafeArea(
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               itemCount: _systemRingtones.length,
               itemBuilder: (context, index) {
                 final ringtone = _systemRingtones[index];
                 final isSelected = ringtone == _selectedRingtone;
+                final isDefault = index < 6; // First 6 are internal defaults
                 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isSelected 
-                              ? Theme.of(context).colorScheme.primary.withAlpha(30)
-                              : (isDark ? Colors.white.withAlpha(10) : Colors.white.withAlpha(180)),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isSelected
-                                ? Theme.of(context).colorScheme.primary.withAlpha(100)
-                                : (isDark ? Colors.white.withAlpha(15) : Colors.black.withAlpha(6)),
-                            width: isSelected ? 2 : 1,
-                          ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isSelected 
+                          ? primaryColor.withAlpha(isSelected ? 40 : 10)
+                          : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: isSelected
+                            ? primaryColor.withAlpha(150)
+                            : (isDark ? Colors.white.withAlpha(12) : Colors.black.withAlpha(6)),
+                        width: isSelected ? 2 : 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(isSelected ? 40 : 10),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
-                        child: RadioListTile<String>(
-                          value: ringtone,
-                          groupValue: _selectedRingtone,
-                          onChanged: (String? value) {
-                            if (value != null) {
-                              setState(() => _selectedRingtone = value);
-                            }
-                          },
-                          title: Text(
-                            ringtone,
-                            style: TextStyle(
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                          ),
-                          activeColor: Theme.of(context).colorScheme.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      ],
+                    ),
+                    child: RadioListTile<String>(
+                      value: ringtone,
+                      groupValue: _selectedRingtone,
+                      onChanged: (String? value) async {
+                        if (value != null) {
+                          setState(() => _selectedRingtone = value);
+                          if (isDefault) {
+                            await settingsService.clearRingtone();
+                            await settingsService.setRingtoneName(value);
+                          }
+                        }
+                      },
+                      title: Text(
+                        ringtone,
+                        style: TextStyle(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 16,
                         ),
                       ),
+                      secondary: !isDefault ? IconButton(
+                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                        onPressed: () => _deleteRingtone(ringtone),
+                        tooltip: 'Delete custom ringtone',
+                      ) : null,
+                      activeColor: primaryColor,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     ),
                   ),
                 );

@@ -401,26 +401,27 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
                       const Spacer(),
                       
                       // Keypad or Controls
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        transitionBuilder: (child, animation) {
-                          return FadeTransition(
-                            opacity: animation,
-                            child: SlideTransition(
-                              position: Tween<Offset>(
-                                begin: const Offset(0, 0.1),
-                                end: Offset.zero,
-                              ).animate(animation),
-                              child: child,
-                            ),
-                          );
-                        },
-                        child: _showKeypad
-                            ? _buildInCallKeypad()
-                            : _buildCallControls(),
-                      ),
+                      if (_callState == CallState.connected || _showKeypad)
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: (child, animation) {
+                            return FadeTransition(
+                              opacity: animation,
+                              child: SlideTransition(
+                                position: Tween<Offset>(
+                                  begin: const Offset(0, 0.1),
+                                  end: Offset.zero,
+                                ).animate(animation),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: _showKeypad
+                              ? _buildInCallKeypad()
+                              : _buildCallControls(),
+                        ),
                       
-                      SizedBox(height: _showKeypad ? 10 : 40),
+                      SizedBox(height: _showKeypad ? 10 : (_callState == CallState.connected ? 40 : 0)),
                       
                       // Incoming call buttons OR End Call Button
                       if (widget.isIncoming && _callState == CallState.ringing)
