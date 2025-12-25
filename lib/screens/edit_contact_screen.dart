@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'dart:io';
-import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class EditContactScreen extends StatefulWidget {
@@ -29,7 +29,6 @@ class _EditContactScreenState extends State<EditContactScreen> {
   late TextEditingController _companyController;
   late TextEditingController _notesController;
   File? _image;
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -68,41 +67,31 @@ class _EditContactScreenState extends State<EditContactScreen> {
     });
   }
 
-  Future<void> _pickImage(ImageSource source) async {
-    // Request permissions based on source
-    if (source == ImageSource.camera) {
-      final status = await Permission.camera.request();
+  Future<void> _pickImage() async {
+    // Request photo/storage permission
+    var status = await Permission.photos.request();
+    if (!status.isGranted) {
+      status = await Permission.storage.request();
       if (!status.isGranted) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Camera permission denied'), behavior: SnackBarBehavior.floating),
+          const SnackBar(content: Text('Photo permission denied'), behavior: SnackBarBehavior.floating),
         );
         return;
       }
-    } else {
-      // For gallery, depends on Android version but requesting Photos/Storage is safe
-      final photoStatus = await Permission.photos.request();
-      if (!photoStatus.isGranted) {
-        final storageStatus = await Permission.storage.request();
-        if (!storageStatus.isGranted) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Gallery permission denied'), behavior: SnackBarBehavior.floating),
-          );
-          return;
-        }
-      }
     }
 
-    final XFile? pickedFile = await _picker.pickImage(source: source);
-    if (pickedFile != null) {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+    );
+
+    if (result != null && result.files.single.path != null) {
       if (!mounted) return;
       setState(() {
-        _image = File(pickedFile.path);
+        _image = File(result.files.single.path!);
       });
     }
   }
-
   void _showImagePickerOptions() {
     showModalBottomSheet(
       context: context,
@@ -123,19 +112,11 @@ class _EditContactScreenState extends State<EditContactScreen> {
                    child: Column(
                      children: [
                        ListTile(
-                         leading: const Icon(Icons.photo_camera),
-                         title: const Text('Take a photo'),
-                         onTap: () {
-                           Navigator.pop(context);
-                           _pickImage(ImageSource.camera);
-                         },
-                       ),
-                       ListTile(
                          leading: const Icon(Icons.photo_library),
                          title: const Text('Choose from gallery'),
                          onTap: () {
                            Navigator.pop(context);
-                           _pickImage(ImageSource.gallery);
+                           _pickImage();
                          },
                        ),
                      ],

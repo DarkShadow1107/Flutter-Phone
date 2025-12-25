@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:ui';
 
 class AppTheme {
@@ -16,7 +15,7 @@ class AppTheme {
         brightness: Brightness.light,
         surface: const Color(0xFFFBFBFF),
       ),
-      textTheme: GoogleFonts.outfitTextTheme(),
+      fontFamily: 'Roboto',
       scaffoldBackgroundColor: const Color(0xFFF5F7FA),
       cardTheme: CardThemeData(
         elevation: 2,
@@ -48,7 +47,7 @@ class AppTheme {
         brightness: Brightness.dark,
         surface: const Color(0xFF121212),
       ),
-      textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
+      fontFamily: 'Roboto',
       scaffoldBackgroundColor: samsungBlack,
       cardTheme: CardThemeData(
         elevation: 0,

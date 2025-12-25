@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -90,16 +91,29 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
           _endCall();
         }
       } else if (state == NativeCallState.active && _callState != CallState.connected) {
-        // Call became active (answered)
+        // Call became active (answered) - smooth transition
         if (mounted) {
           setState(() => _callState = CallState.connected);
+          // Haptic feedback when call connects
+          HapticFeedback.mediumImpact();
+        }
+      } else if (state == NativeCallState.ringing && _callState == CallState.dialing) {
+        // Call is ringing on the other end
+        if (mounted) {
+          setState(() => _callState = CallState.ringing);
         }
       }
     });
 
-    // Simulate call state transitions for outgoing calls
+    // For outgoing calls, start in dialing state and wait for native events
+    // No more simulation - rely on actual telephony state
     if (!widget.isIncoming) {
-      _simulateCallProgress();
+      // Give immediate feedback that we're attempting
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted && _callState == CallState.dialing) {
+          // Visual feedback - the native side handles actual state
+        }
+      });
     }
 
     // Call timer - only runs when connected
@@ -107,18 +121,6 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
   }
 
   StreamSubscription? _callStateSubscription;
-
-  void _simulateCallProgress() async {
-    // Dialing phase
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() => _callState = CallState.ringing);
-    
-    // Ringing phase (simulate answer after a few seconds for demo)
-    await Future.delayed(const Duration(seconds: 3));
-    if (!mounted) return;
-    setState(() => _callState = CallState.connected);
-  }
 
   void _startCallTimer() {
     Future.doWhile(() async {

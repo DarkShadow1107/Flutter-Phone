@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:ui';
 import 'call_screen.dart';
 import 'edit_contact_screen.dart';
+import '../services/whatsapp_service.dart';
 
 class ContactDetailScreen extends StatefulWidget {
   final String name;
@@ -24,12 +25,25 @@ class ContactDetailScreen extends StatefulWidget {
 class _ContactDetailScreenState extends State<ContactDetailScreen> {
   late String _name;
   late String _number;
+  bool _hasWhatsApp = false;
+  bool _isCheckingWhatsApp = true;
 
   @override
   void initState() {
     super.initState();
     _name = widget.name;
     _number = widget.number;
+    _checkWhatsAppAvailability();
+  }
+
+  Future<void> _checkWhatsAppAvailability() async {
+    final hasWhatsApp = await whatsAppService.isNumberOnWhatsApp(_number);
+    if (mounted) {
+      setState(() {
+        _hasWhatsApp = hasWhatsApp;
+        _isCheckingWhatsApp = false;
+      });
+    }
   }
 
   Future<void> _openWhatsAppCall() async {
@@ -364,18 +378,20 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                               color: Colors.blue,
                               onTap: _sendSMS,
                             ),
-                            _buildActionButton(
-                              icon: Icons.videocam,
-                              label: 'Video',
-                              color: Colors.teal,
-                              onTap: _openWhatsAppVideo,
-                            ),
-                            _buildActionButton(
-                               icon: Icons.call,
-                               label: 'WA Call',
-                               color: Colors.green.shade700,
-                               onTap: _openWhatsAppCall,
-                            ),
+                            if (_hasWhatsApp) ...[
+                              _buildActionButton(
+                                icon: Icons.videocam,
+                                label: 'Video',
+                                color: Colors.teal,
+                                onTap: _openWhatsAppVideo,
+                              ),
+                              _buildActionButton(
+                                 icon: Icons.call,
+                                 label: 'WA Call',
+                                 color: Colors.green.shade700,
+                                 onTap: _openWhatsAppCall,
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -388,10 +404,11 @@ class _ContactDetailScreenState extends State<ContactDetailScreen> {
                 // Info Sections
                 _buildInfoSection('Mobile', _number, Icons.phone_android),
                 _buildInfoSection('Email', 'email@example.com', Icons.email_outlined),
-                _buildInfoSection('WhatsApp', 'Chat with $_name', Icons.chat_bubble_outline, onTap: () async {
-                  final Uri url = Uri.parse('https://wa.me/${_number.replaceAll(RegExp(r'[^0-9]'), '')}');
-                  if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
-                }),
+                if (_hasWhatsApp)
+                  _buildInfoSection('WhatsApp', 'Chat with $_name', Icons.chat_bubble_outline, onTap: () async {
+                    final Uri url = Uri.parse('https://wa.me/${_number.replaceAll(RegExp(r'[^0-9]'), '')}');
+                    if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }),
                 
                 const SizedBox(height: 50),
               ],

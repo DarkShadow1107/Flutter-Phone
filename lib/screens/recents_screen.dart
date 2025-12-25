@@ -198,6 +198,34 @@ class _RecentsScreenState extends State<RecentsScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              PageRouteBuilder(
+                                pageBuilder: (context, animation, secondaryAnimation) => ContactDetailScreen(
+                                  name: contactName,
+                                  number: number,
+                                  avatarColor: color,
+                                ),
+                                transitionDuration: const Duration(milliseconds: 100),
+                                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                  return SlideTransition(
+                                    position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+                                        .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+                                    child: child,
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                          child: Icon(
+                            Icons.info_outline,
+                            color: Theme.of(context).colorScheme.primary.withAlpha(180),
+                            size: 18,
+                          ),
+                        ),
                       ],
                     ),
                     subtitle: Text(
