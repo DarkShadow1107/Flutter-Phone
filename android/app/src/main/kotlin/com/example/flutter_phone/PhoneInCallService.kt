@@ -15,6 +15,7 @@ import android.os.VibratorManager
 import android.content.Context
 import android.app.KeyguardManager
 import android.os.PowerManager
+import android.net.Uri
 import androidx.core.app.NotificationCompat
 
 class PhoneInCallService : InCallService() {
@@ -90,10 +91,20 @@ class PhoneInCallService : InCallService() {
 
     private fun startRingtone() {
         try {
-            val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            // Load custom ringtone path from SharedPreferences (Flutter uses "FlutterSharedPreferences")
+            val prefs = getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+            val customUriString = prefs.getString("flutter.custom_ringtone_uri", null)
+            
+            val ringtoneUri = if (customUriString != null) {
+                android.util.Log.d("FlutterPhone", "Loading custom ringtone: $customUriString")
+                Uri.parse(customUriString)
+            } else {
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            }
+            
             ringtone = RingtoneManager.getRingtone(applicationContext, ringtoneUri)
             ringtone?.play()
-            android.util.Log.d("FlutterPhone", "Ringtone started")
+            android.util.Log.d("FlutterPhone", "Ringtone started with URI: $ringtoneUri")
         } catch (e: Exception) {
             android.util.Log.e("FlutterPhone", "Error starting ringtone: ${e.message}")
         }
@@ -166,7 +177,7 @@ class PhoneInCallService : InCallService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Answer action
+        // Answer action with green color
         val answerIntent = Intent(this, CallActionReceiver::class.java).apply {
             action = "ANSWER_CALL"
         }
@@ -175,7 +186,7 @@ class PhoneInCallService : InCallService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Decline action
+        // Decline action with red color
         val declineIntent = Intent(this, CallActionReceiver::class.java).apply {
             action = "DECLINE_CALL"
         }
@@ -184,19 +195,38 @@ class PhoneInCallService : InCallService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // Build enhanced notification
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_call)
-            .setContentTitle("Incoming Call")
-            .setContentText(callerName)
+            .setContentTitle(callerName)
+            .setContentText("Incoming call")
+            .setStyle(NotificationCompat.BigTextStyle()
+                .bigText("Incoming call from $number")
+                .setBigContentTitle(callerName))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
-            .addAction(android.R.drawable.ic_menu_call, "Answer", answerPendingIntent)
-            .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePendingIntent)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(0xFF4CAF50.toInt()) // Green accent
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_menu_call,
+                    "Answer",
+                    answerPendingIntent
+                ).build()
+            )
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    android.R.drawable.ic_menu_close_clear_cancel,
+                    "Decline",
+                    declinePendingIntent
+                ).build()
+            )
             .setOngoing(true)
             .setAutoCancel(false)
             .setContentIntent(fullScreenPendingIntent)
+            .setDeleteIntent(declinePendingIntent)
         
-        // Only set full screen intent when screen is locked
+        // Set full screen intent for lock screen
         if (fullScreen) {
             builder.setFullScreenIntent(fullScreenPendingIntent, true)
         }

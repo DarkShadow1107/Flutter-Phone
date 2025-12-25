@@ -18,10 +18,11 @@ class AppTheme {
       ),
       textTheme: GoogleFonts.outfitTextTheme(),
       scaffoldBackgroundColor: const Color(0xFFF5F7FA),
-      cardTheme: CardTheme(
-        elevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        color: Colors.white.withAlpha(200),
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        color: Colors.white,
+        surfaceTintColor: Colors.white,
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.white.withAlpha(200),
@@ -49,10 +50,10 @@ class AppTheme {
       ),
       textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
       scaffoldBackgroundColor: samsungBlack,
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        color: Colors.white.withAlpha(15),
+        color: Colors.white.withAlpha(200),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.black.withAlpha(200),

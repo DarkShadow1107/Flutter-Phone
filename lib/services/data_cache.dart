@@ -209,6 +209,85 @@ class DataCacheService {
     return rawNumber.replaceAll(RegExp(r'[^0-9]'), '');
   }
 
+  /// Find contact by phone number - returns name or null
+  String? findContactName(String phoneNumber) {
+    final cleanNumber = _cleanPhoneNumber(phoneNumber);
+    final lastDigits = cleanNumber.length >= 8 ? cleanNumber.substring(cleanNumber.length - 8) : cleanNumber;
+    
+    for (var contact in _contacts) {
+      final contactNumber = contact['number'] as String;
+      final contactLastDigits = contactNumber.length >= 8 
+          ? contactNumber.substring(contactNumber.length - 8) 
+          : contactNumber;
+      
+      if (contactLastDigits == lastDigits || contactNumber == cleanNumber) {
+        return contact['name'] as String?;
+      }
+    }
+    return null;
+  }
+
+  /// Find contact color by phone number
+  Color? findContactColor(String phoneNumber) {
+    final cleanNumber = _cleanPhoneNumber(phoneNumber);
+    final lastDigits = cleanNumber.length >= 8 ? cleanNumber.substring(cleanNumber.length - 8) : cleanNumber;
+    
+    for (var contact in _contacts) {
+      final contactNumber = contact['number'] as String;
+      final contactLastDigits = contactNumber.length >= 8 
+          ? contactNumber.substring(contactNumber.length - 8) 
+          : contactNumber;
+      
+      if (contactLastDigits == lastDigits || contactNumber == cleanNumber) {
+        return contact['color'] as Color?;
+      }
+    }
+    return null;
+  }
+
+  /// Get full contact info by phone number
+  Map<String, dynamic>? findContact(String phoneNumber) {
+    final cleanNumber = _cleanPhoneNumber(phoneNumber);
+    final lastDigits = cleanNumber.length >= 8 ? cleanNumber.substring(cleanNumber.length - 8) : cleanNumber;
+    
+    for (var contact in _contacts) {
+      final contactNumber = contact['number'] as String;
+      final contactLastDigits = contactNumber.length >= 8 
+          ? contactNumber.substring(contactNumber.length - 8) 
+          : contactNumber;
+      
+      if (contactLastDigits == lastDigits || contactNumber == cleanNumber) {
+        return contact;
+      }
+    }
+    return null;
+  }
+
+  /// Group call logs by contact (shows multiple calls under same contact)
+  Map<String, Map<String, List<Map<String, dynamic>>>> get groupedByContactAndDate {
+    final Map<String, Map<String, List<Map<String, dynamic>>>> result = {};
+    
+    for (var dateKey in _groupedCallLogs.keys) {
+      final dateLogs = _groupedCallLogs[dateKey]!;
+      final Map<String, List<Map<String, dynamic>>> contactGroups = {};
+      
+      for (var log in dateLogs) {
+        final number = log['number'] as String;
+        // Use contact name if available, otherwise use number
+        final contactKey = findContactName(number) ?? number;
+        
+        if (!contactGroups.containsKey(contactKey)) {
+          contactGroups[contactKey] = [];
+        }
+        contactGroups[contactKey]!.add(log);
+      }
+      
+      result[dateKey] = contactGroups;
+    }
+    
+    return result;
+  }
+
   /// Refresh contacts
   Future<void> refreshContacts() async {
     await loadContacts(forceReload: true);

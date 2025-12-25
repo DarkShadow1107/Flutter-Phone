@@ -6,18 +6,24 @@ import 'screens/home_screen.dart';
 import 'screens/call_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/call_service.dart';
+import 'services/data_cache.dart';
+
+import 'services/settings_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize call service
+  // Initialize services
+  await settingsService.initialize();
   callService.initialize();
   
-  // Set high refresh rate (120Hz) if supported
+  // Set high refresh rate (120Hz+) if supported
   try {
     await FlutterDisplayMode.setHighRefreshRate();
+    final modes = await FlutterDisplayMode.supported;
+    debugPrint('Display modes: $modes');
   } catch (e) {
     debugPrint("High refresh rate not supported: $e");
   }
@@ -76,14 +82,30 @@ class _MyAppState extends State<MyApp> {
       _currentIncomingNumber = callInfo.number;
       _isShowingIncomingCall = true;
       
+      // Lookup contact name from cache
+      String displayName = callInfo.name;
+      Color? contactColor;
+      if (displayName.isEmpty) {
+        final contact = dataCache.findContact(callInfo.number);
+        if (contact != null) {
+          displayName = contact['name'] as String? ?? callInfo.number;
+          contactColor = contact['color'] as Color?;
+        } else {
+          displayName = callInfo.number;
+        }
+      }
+      
+      debugPrint('MyApp: Showing call from $displayName');
+      
       // Navigate to call screen
       WidgetsBinding.instance.addPostFrameCallback((_) {
         navigatorKey.currentState?.push(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) => CallScreen(
-              name: callInfo.name.isNotEmpty ? callInfo.name : callInfo.number,
+              name: displayName,
               number: callInfo.number,
               isIncoming: true,
+              contactColor: contactColor,
             ),
             transitionsBuilder: (context, animation, secondaryAnimation, child) {
               return SlideTransition(
@@ -97,6 +119,7 @@ class _MyAppState extends State<MyApp> {
                 child: child,
               );
             },
+            transitionDuration: const Duration(milliseconds: 100),
           ),
         ).then((_) {
           // Reset when screen is popped

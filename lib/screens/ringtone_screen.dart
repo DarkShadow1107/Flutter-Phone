@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../services/settings_service.dart';
 
 class RingtoneScreen extends StatefulWidget {
   const RingtoneScreen({super.key});
@@ -20,6 +21,24 @@ class _RingtoneScreenState extends State<RingtoneScreen> {
     'Classic Ring',
     'Flutter Tune',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedSettings();
+  }
+
+  void _loadSavedSettings() {
+    final savedName = settingsService.getRingtoneName();
+    if (savedName != null) {
+      setState(() {
+        if (!_systemRingtones.contains(savedName)) {
+          _systemRingtones.add(savedName);
+        }
+        _selectedRingtone = savedName;
+      });
+    }
+  }
 
     Future<void> _pickCustomRingtone() async {
     // Request permissions based on Android version
@@ -51,14 +70,25 @@ class _RingtoneScreenState extends State<RingtoneScreen> {
     );
 
     if (result != null) {
-      if (!mounted) return;
-      setState(() {
-        _systemRingtones.add(result.files.single.name);
-        _selectedRingtone = result.files.single.name;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ringtone imported successfully')),
-      );
+      final path = result.files.single.path;
+      final name = result.files.single.name;
+      
+      if (path != null && mounted) {
+        setState(() {
+          if (!_systemRingtones.contains(name)) {
+            _systemRingtones.add(name);
+          }
+          _selectedRingtone = name;
+        });
+        
+        // Persist setting
+        await settingsService.setRingtoneUri(path);
+        await settingsService.setRingtoneName(name);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ringtone imported and saved')),
+        );
+      }
     }
   }
 
@@ -162,8 +192,10 @@ class _RingtoneScreenState extends State<RingtoneScreen> {
                         child: RadioListTile<String>(
                           value: ringtone,
                           groupValue: _selectedRingtone,
-                          onChanged: (value) {
-                            setState(() => _selectedRingtone = value!);
+                          onChanged: (String? value) {
+                            if (value != null) {
+                              setState(() => _selectedRingtone = value);
+                            }
                           },
                           title: Text(
                             ringtone,

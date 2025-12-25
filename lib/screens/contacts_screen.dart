@@ -311,32 +311,38 @@ class _ContactsScreenState extends State<ContactsScreen> {
     final number = contact['number'] as String;
     final color = contact['color'] as Color;
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 150 + (index * 25)),
-      curve: Curves.easeOut,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(offset: Offset(0, 15 * (1 - value)), child: child),
-        );
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: SwipeActionWidget(
-          onCall: () {
-            Navigator.push(context, PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => CallScreen(name: name, number: number, contactColor: color),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                return SlideTransition(
-                  position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-                  child: child,
-                );
-              },
-            ));
-          },
-          onMessage: () => _sendMessage(number),
-          child: ClipRRect(
+    void makeCall() async {
+      // Actually place the call
+      final cleanNumber = PhoneUtils.cleanPhoneNumber(number);
+      await PhoneUtils.makeCall(cleanNumber);
+      
+      if (!mounted) return;
+      
+      // Show call UI
+      Navigator.push(context, PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => CallScreen(
+          name: name,
+          number: cleanNumber,
+          contactColor: color,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return SlideTransition(
+            position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+                .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 100),
+      ));
+    }
+
+    // No staggered animation for faster load
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: SwipeActionWidget(
+        onCall: makeCall,
+        onMessage: () => _sendMessage(number),
+        child: ClipRRect(
             borderRadius: BorderRadius.circular(24),
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
@@ -378,17 +384,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       GestureDetector(
-                        onTap: () {
-                          Navigator.push(context, PageRouteBuilder(
-                            pageBuilder: (context, animation, secondaryAnimation) => CallScreen(name: name, number: number, contactColor: color),
-                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                              return SlideTransition(
-                                position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-                                child: child,
-                              );
-                            },
-                          ));
-                        },
+                        onTap: makeCall,
                         child: Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(color: Colors.green.withAlpha(20), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.withAlpha(40))),
@@ -419,7 +415,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
             ),
           ),
         ),
-      ),
+
     );
   }
 }
