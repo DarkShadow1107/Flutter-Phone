@@ -338,27 +338,24 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
     // No staggered animation for faster load
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.only(bottom: 12),
       child: SwipeActionWidget(
         onCall: makeCall,
         onMessage: () => _sendMessage(number),
-        child: ClipRRect(
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
             borderRadius: BorderRadius.circular(24),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: isDark
-                        ? [Colors.black.withAlpha(200), Colors.black.withAlpha(150)]
-                        : [Colors.white.withAlpha(245), Colors.white.withAlpha(230)],
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(10)),
-                ),
-                child: ListTile(
+            border: Border.all(color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(10)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(isDark ? 50 : 10),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   leading: Hero(
                     tag: 'avatar_$name',
@@ -413,9 +410,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
                 ),
               ),
             ),
-          ),
-        ),
-
     );
   }
 }

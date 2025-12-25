@@ -152,6 +152,11 @@ class PhoneInCallService : InCallService() {
                 description = descriptionText
                 setSound(null, null)
                 enableVibration(false)
+                // Attempt to bypass DND if possible via priority
+                lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    setAllowBubbles(true)
+                }
             }
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
@@ -166,7 +171,7 @@ class PhoneInCallService : InCallService() {
 
         // Intent to launch app
         val fullScreenIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("incoming_call", true)
             putExtra("caller_number", number)
             putExtra("caller_name", callerName)
@@ -177,7 +182,7 @@ class PhoneInCallService : InCallService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Answer action with green color
+        // Answer action
         val answerIntent = Intent(this, CallActionReceiver::class.java).apply {
             action = "ANSWER_CALL"
         }
@@ -186,7 +191,7 @@ class PhoneInCallService : InCallService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Decline action with red color
+        // Decline action
         val declineIntent = Intent(this, CallActionReceiver::class.java).apply {
             action = "DECLINE_CALL"
         }
@@ -195,18 +200,21 @@ class PhoneInCallService : InCallService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Build enhanced notification
+        // Samsung-style Samsung Call layout: Answer (Green), Decline (Red)
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_call)
             .setContentTitle(callerName)
             .setContentText("Incoming call")
-            .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("Incoming call from $number")
-                .setBigContentTitle(callerName))
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setColor(0xFF4CAF50.toInt()) // Green accent
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setShowWhen(true)
+            .setUsesChronometer(false)
+            .addPerson("tel:$number") // Helps bypass DND for starred contacts
+            .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setColor(0xFF000000.toInt()) // Sleek dark theme color
             .addAction(
                 NotificationCompat.Action.Builder(
                     android.R.drawable.ic_menu_call,
@@ -221,14 +229,12 @@ class PhoneInCallService : InCallService() {
                     declinePendingIntent
                 ).build()
             )
-            .setOngoing(true)
-            .setAutoCancel(false)
             .setContentIntent(fullScreenPendingIntent)
             .setDeleteIntent(declinePendingIntent)
-        
-        // Set full screen intent for lock screen
-        if (fullScreen) {
-            builder.setFullScreenIntent(fullScreenPendingIntent, true)
+
+        // For newer Samsung-like heads-up behavior
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         }
 
         val notification = builder.build()

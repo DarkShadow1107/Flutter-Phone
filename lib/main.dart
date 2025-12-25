@@ -21,9 +21,17 @@ void main() async {
   
   // Set high refresh rate (120Hz+) if supported
   try {
-    await FlutterDisplayMode.setHighRefreshRate();
     final modes = await FlutterDisplayMode.supported;
-    debugPrint('Display modes: $modes');
+    debugPrint('Supported display modes: $modes');
+    
+    // Find highest refresh rate mode
+    if (modes.isNotEmpty) {
+      final highestMode = modes.reduce((curr, next) => curr.refreshRate > next.refreshRate ? curr : next);
+      debugPrint('Setting highest refresh rate: ${highestMode.refreshRate}Hz');
+      await FlutterDisplayMode.setPreferredMode(highestMode);
+    } else {
+      await FlutterDisplayMode.setHighRefreshRate();
+    }
   } catch (e) {
     debugPrint("High refresh rate not supported: $e");
   }

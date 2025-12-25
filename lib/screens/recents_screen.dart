@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'dart:ui';
 import 'call_screen.dart';
 import 'contact_detail_screen.dart';
 import '../widgets/swipe_action_widget.dart';
@@ -144,26 +143,29 @@ class _RecentsScreenState extends State<RecentsScreen> {
       child: SwipeActionWidget(
         onCall: () => _makeCall(contactName, number, color),
         onMessage: () => PhoneUtils.sendSms(number),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: isDark
-                      ? [Colors.black.withAlpha(180), Colors.black.withAlpha(140)]
-                      : [Colors.white.withAlpha(240), Colors.white.withAlpha(220)],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(8),
-                ),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: isDark
+                  ? [const Color(0xFF1E1E1E), const Color(0xFF121212)]
+                  : [Colors.white, const Color(0xFFF0F0F0)],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(8),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(isDark ? 50 : 10),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-              child: isGrouped 
-                ? ExpansionTile(
+            ],
+          ),
+          child: isGrouped 
+              ? ExpansionTile(
                     shape: const RoundedRectangleBorder(side: BorderSide.none),
                     tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                     leading: _buildAvatar(contactName, color),
@@ -263,10 +265,8 @@ class _RecentsScreenState extends State<RecentsScreen> {
                           ),
                         );
                       },
-                    ),
                   ),
             ),
-          ),
         ),
       ),
     );
