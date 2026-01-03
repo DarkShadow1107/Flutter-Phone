@@ -192,6 +192,15 @@ class CallService {
     }
   }
 
+  /// Tell native to finish activity if we were on lock screen
+  Future<void> finishIfLocked() async {
+    try {
+      await _callChannel.invokeMethod('finishIfLocked');
+    } catch (e) {
+      debugPrint('CallService: Error calling finishIfLocked: $e');
+    }
+  }
+
   void dispose() {
     _eventSubscription?.cancel();
     _incomingCallController.close();

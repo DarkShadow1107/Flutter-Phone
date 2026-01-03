@@ -53,6 +53,7 @@ class PhoneInCallService : InCallService() {
 
         // Only handle ringing state for incoming calls
         if (call.state == Call.STATE_RINGING) {
+            wakeScreen() // Wake the screen first
             startRingtone()
             startVibration()
             showIncomingCallNotification(call)
@@ -119,12 +120,32 @@ class PhoneInCallService : InCallService() {
             val name = "Incoming Calls"
             val importance = NotificationManager.IMPORTANCE_HIGH
             val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
-                setSound(null, null)
-                enableVibration(false)
+                setSound(null, null) // We handle ringtone separately
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 1000, 1000)
                 lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+                setBypassDnd(true) // Allow calls to bypass Do Not Disturb
+                enableLights(true)
+                lightColor = 0xFF00FF00.toInt()
             }
             val notificationManager = getSystemService(NotificationManager::class.java)
             notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun wakeScreen() {
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            val wakeLock = powerManager.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or 
+                PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                PowerManager.ON_AFTER_RELEASE,
+                "FlutterPhone::IncomingCallWakeLock"
+            )
+            wakeLock.acquire(10000) // 10 seconds max
+            android.util.Log.d("FlutterPhone", "Screen wake lock acquired")
+        } catch (e: Exception) {
+            android.util.Log.e("FlutterPhone", "Error waking screen: ${e.message}")
         }
     }
 

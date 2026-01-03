@@ -141,6 +141,19 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     setState(() => _callState = CallState.connected);
   }
 
+  void _rejectCall() async {
+    // Reject via native call service
+    await callService.rejectCall();
+    
+    // If on lock screen, finish the activity
+    await callService.finishIfLocked();
+    
+    if (!mounted) return;
+    
+    // Just pop back, no call end screen for rejected calls
+    Navigator.of(context).pop();
+  }
+
   @override
   void dispose() {
     _callStateSubscription?.cancel();
@@ -194,8 +207,12 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
     // End via native call service
     await callService.endCall();
     
+    // If we're on lock screen, this will dismiss the app
+    await callService.finishIfLocked();
+    
     if (!mounted) return;
     
+    // Only navigate to end screen if we're still here (not dismissed by lock screen)
     navigator.pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => CallEndScreen(
@@ -617,7 +634,7 @@ class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
             return Transform.scale(scale: value, child: child);
           },
           child: GestureDetector(
-            onTap: _endCall,
+            onTap: _rejectCall,
             child: Container(
               width: 76,
               height: 76,

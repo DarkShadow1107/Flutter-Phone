@@ -12,13 +12,19 @@ import android.os.Bundle
 import android.net.Uri
 import android.Manifest
 import android.content.pm.PackageManager
+import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.app.KeyguardManager
+import android.os.PowerManager
 
 class MainActivity : FlutterActivity() {
     private val DIALER_CHANNEL = "com.example.flutter_phone/dialer"
     private val CALL_CHANNEL = "com.example.flutter_phone/calls"
     private val CALL_EVENTS = "com.example.flutter_phone/call_events"
+    
+    private var isIncomingCallMode = false
+    private var wasLockedWhenCallStarted = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -41,6 +47,23 @@ class MainActivity : FlutterActivity() {
                         result.success(false)
                     }
                 }
+                "openDefaultDialerSettings" -> {
+                    // Open the system settings page for default phone app
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                            val intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)
+                            startActivity(intent)
+                        } else {
+                            val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER)
+                            intent.putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
+                            startActivity(intent)
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        android.util.Log.e("FlutterPhone", "Error opening settings: ${e.message}")
+                        result.success(false)
+                    }
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -56,10 +79,18 @@ class MainActivity : FlutterActivity() {
                 }
                 "rejectCall" -> {
                     CallManager.rejectCall()
+                    // If we were on lock screen, finish the activity
+                    if (wasLockedWhenCallStarted) {
+                        finishAndRemoveFromRecents()
+                    }
                     result.success(true)
                 }
                 "endCall" -> {
                     CallManager.endCall()
+                    // If we were on lock screen, finish the activity
+                    if (wasLockedWhenCallStarted) {
+                        finishAndRemoveFromRecents()
+                    }
                     result.success(true)
                 }
                 "makeCall" -> {
@@ -83,6 +114,13 @@ class MainActivity : FlutterActivity() {
                 "hasActiveCall" -> {
                     result.success(CallManager.getCurrentCall() != null)
                 }
+                "finishIfLocked" -> {
+                    // Called when call ends to close app if we were on lock screen
+                    if (wasLockedWhenCallStarted || isScreenLocked()) {
+                        finishAndRemoveFromRecents()
+                    }
+                    result.success(true)
+                }
                 else -> {
                     result.notImplemented()
                 }
@@ -100,6 +138,23 @@ class MainActivity : FlutterActivity() {
                 }
             }
         )
+    }
+    
+    private fun finishAndRemoveFromRecents() {
+        isIncomingCallMode = false
+        wasLockedWhenCallStarted = false
+        clearLockScreenFlags()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            finishAndRemoveTask()
+        } else {
+            finish()
+        }
+    }
+    
+    private fun isScreenLocked(): Boolean {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        return keyguardManager.isKeyguardLocked || !powerManager.isInteractive
     }
 
     private fun makePhoneCall(number: String) {
@@ -149,10 +204,14 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setupLockScreenFlags()
         handleIncomingCallIntent(intent)
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIncomingCallIntent(intent)
+    }
+    
     private fun setupLockScreenFlags() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
@@ -167,14 +226,30 @@ class MainActivity : FlutterActivity() {
             )
         }
     }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleIncomingCallIntent(intent)
+    
+    private fun clearLockScreenFlags() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(false)
+            setTurnScreenOn(false)
+        } else {
+            @Suppress("DEPRECATION")
+            window.clearFlags(
+                android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
+                android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            )
+        }
     }
 
     private fun handleIncomingCallIntent(intent: Intent?) {
         if (intent?.getBooleanExtra("incoming_call", false) == true) {
+            isIncomingCallMode = true
+            wasLockedWhenCallStarted = isScreenLocked()
+            
+            // Only setup lock screen flags for incoming calls
+            setupLockScreenFlags()
+            
             val number = intent.getStringExtra("caller_number") ?: "Unknown"
             val name = intent.getStringExtra("caller_name") ?: ""
             
@@ -186,5 +261,10 @@ class MainActivity : FlutterActivity() {
                 )
             }
         }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        clearLockScreenFlags()
     }
 }

@@ -72,15 +72,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 5),
           action: SnackBarAction(
-            label: 'SET AS DEFAULT',
+            label: 'OPEN SETTINGS',
             onPressed: () async {
               try {
-                await platform.invokeMethod('requestDefaultDialer');
+                // Try to open settings directly
+                final result = await platform.invokeMethod('openDefaultDialerSettings');
+                if (result != true) {
+                  // Fallback to regular request
+                  await platform.invokeMethod('requestDefaultDialer');
+                }
                 // Recheck after user action
                 await Future.delayed(const Duration(seconds: 1));
                 _checkDefaultDialer();
               } catch (e) {
-                debugPrint("Error requesting default dialer: $e");
+                debugPrint("Error opening default dialer settings: $e");
               }
             },
           ),
